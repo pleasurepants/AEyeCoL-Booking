@@ -96,6 +96,8 @@ export default function AdminPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [assigning, setAssigning] = useState(false);
+  const [assignResult, setAssignResult] = useState<string | null>(null);
 
   useEffect(() => {
     async function checkAuth() {
@@ -191,6 +193,30 @@ export default function AdminPage() {
     fetchSessions();
   }
 
+  async function handleRunAssignment() {
+    setAssigning(true);
+    setError(null);
+    setAssignResult(null);
+
+    try {
+      const res = await fetch("/api/admin/assign", { method: "POST" });
+      const body = await res.json();
+
+      if (!res.ok) {
+        setError("Assignment failed: " + (body?.error ?? "Unknown error"));
+      } else {
+        setAssignResult(
+          `Assignment complete: ${body.confirmed_count} booking${body.confirmed_count !== 1 ? "s" : ""} confirmed for ${body.date}`
+        );
+        fetchSessions();
+      }
+    } catch {
+      setError("Assignment request failed.");
+    }
+
+    setAssigning(false);
+  }
+
   if (authChecking) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -239,16 +265,32 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="mb-6 flex items-center justify-between">
+        {assignResult && (
+          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {assignResult}
+          </div>
+        )}
+
+        {/* Assignment + actions bar */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-gray-800">
             All Sessions ({sessions.length})
           </h2>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-          >
-            {showForm ? "Cancel" : "Add Session"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRunAssignment}
+              disabled={assigning}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+            >
+              {assigning ? "Running…" : "Run Assignment"}
+            </button>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              {showForm ? "Cancel" : "Add Session"}
+            </button>
+          </div>
         </div>
 
         {showForm && (

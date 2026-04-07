@@ -12,6 +12,7 @@ interface Session {
   room: string | null;
   max_participants: number;
   notes: string | null;
+  confirmed_count: number;
 }
 
 interface PersonalInfo {
@@ -58,7 +59,9 @@ export default function Home() {
 
   const fetchSessions = useCallback(async () => {
     const today = new Date().toISOString().split("T")[0];
-    const { data, error: fetchError } = await supabase
+
+    // Fetch sessions
+    const { data: sessionData, error: fetchError } = await supabase
       .from("sessions")
       .select("id, date, start_time, end_time, location, room, max_participants, notes")
       .gte("date", today)
@@ -72,7 +75,22 @@ export default function Home() {
       return;
     }
 
-    setSessions(data ?? []);
+    // Fetch confirmed booking counts per session
+    const { data: countData } = await supabase
+      .from("bookings")
+      .select("session_id")
+      .eq("status", "confirmed");
+
+    const counts: Record<string, number> = {};
+    for (const row of countData ?? []) {
+      counts[row.session_id] = (counts[row.session_id] ?? 0) + 1;
+    }
+
+    const available = (sessionData ?? [])
+      .map((s) => ({ ...s, confirmed_count: counts[s.id] ?? 0 }))
+      .filter((s) => s.confirmed_count < s.max_participants);
+
+    setSessions(available);
     setLoading(false);
   }, []);
 
@@ -121,38 +139,36 @@ export default function Home() {
     setSubmitting(true);
     setError(null);
 
-    const rows = [
+    const sessionChoices = [
       { session_id: firstChoice.id, preference_order: 1 },
       ...(backup1 ? [{ session_id: backup1.id, preference_order: 2 }] : []),
       ...(backup2 ? [{ session_id: backup2.id, preference_order: 3 }] : []),
-    ].map((r) => ({
-      ...r,
-      full_name: info.full_name,
-      email: info.email,
-      phone: info.phone || null,
-      comments: info.comments || null,
-      status: "pending",
-    }));
+    ];
 
-    const { error: insertError } = await supabase
-      .from("bookings")
-      .insert(rows);
+    try {
+      const res = await fetch("/api/bookings/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: info.full_name,
+          email: info.email,
+          phone: info.phone || null,
+          comments: info.comments || null,
+          sessions: sessionChoices,
+        }),
+      });
 
-    if (insertError) {
-      console.error("Booking insert error:", insertError);
-      setError("Failed to submit application: " + insertError.message);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError("Failed to submit application: " + (body?.error ?? "Unknown error"));
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      setError("Failed to submit application. Please try again.");
       setSubmitting(false);
       return;
     }
-
-    fetch("/api/bookings/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: info.email,
-        full_name: info.full_name,
-      }),
-    }).catch(console.error);
 
     setSubmitting(false);
     setStep("submitted");
@@ -385,6 +401,7 @@ function SessionCard({
   selected?: boolean;
   badge?: string | null;
 }) {
+  const spots = session.max_participants - session.confirmed_count;
   return (
     <button
       onClick={onClick}
@@ -401,15 +418,26 @@ function SessionCard({
         {formatTime(session.start_time)} – {formatTime(session.end_time)} · {session.location}
         {session.room && `, ${session.room}`}
       </div>
+      <div className="mt-2 flex items-center gap-2">
+        <span
+          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            spots <= 2
+              ? "bg-amber-100 text-amber-700"
+              : "bg-emerald-100 text-emerald-700"
+          }`}
+        >
+          {spots} spot{spots !== 1 ? "s" : ""} remaining
+        </span>
+        {badge && (
+          <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+            {badge}
+          </span>
+        )}
+      </div>
       {session.notes && (
         <p className="mt-2 text-xs leading-relaxed text-gray-400">
           {session.notes}
         </p>
-      )}
-      {badge && (
-        <span className="mt-2 inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-          {badge}
-        </span>
       )}
     </button>
   );

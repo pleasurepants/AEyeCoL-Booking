@@ -83,13 +83,21 @@ function CancelContent() {
     setCancelling(true);
     setError(null);
 
-    const { error: deleteError } = await supabase
-      .from("bookings")
-      .delete()
-      .eq("id", token);
+    try {
+      const res = await fetch("/api/bookings/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ booking_id: token }),
+      });
 
-    if (deleteError) {
-      setError("Failed to cancel booking: " + deleteError.message);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError("Failed to cancel booking: " + (body?.error ?? "Unknown error"));
+        setCancelling(false);
+        return;
+      }
+    } catch {
+      setError("Failed to cancel booking. Please try again.");
       setCancelling(false);
       return;
     }
