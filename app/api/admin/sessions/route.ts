@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { supabase } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
-  const { data, error } = await supabaseAdmin.from("sessions").insert({
+  const { data, error } = await supabase.from("sessions").insert({
     date: body.date,
     start_time: body.start_time,
     end_time: body.end_time,
@@ -26,7 +26,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Missing session id" }, { status: 400 });
   }
 
-  const { error } = await supabaseAdmin
+  const { error } = await supabase
     .from("sessions")
     .delete()
     .eq("id", id);
