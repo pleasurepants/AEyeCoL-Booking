@@ -15,41 +15,30 @@ async function confirmedCount(sessionId: string): Promise<number> {
 }
 
 /**
- * Delete ALL other bookings (pending) for this email, except the one being kept.
- * This enforces the rule: one confirmed booking per person, no leftover pending.
+ * CORE assignment function.
+ * Gets all pending bookings for this email, ordered by preference_order ASC.
+ * First session with room → confirm that booking, DELETE every other booking
+ * for this email (pending or otherwise), send confirmation email.
+ * If no session has room → leave as pending (optionally send "all full" email).
+ * Returns the confirmed booking's session_id, or null.
  */
-async function deleteOtherBookingsForEmail(
-  keepId: string,
-  email: string
-): Promise<void> {
-  await supabase
-    .from("bookings")
-    .delete()
-    .eq("email", email)
-    .eq("status", "pending")
-    .neq("id", keepId);
-}
-
-/**
- * Immediate assignment after a new submission.
- * Checks preferences in order (1→2→3). First session with room →
- * confirm that booking, DELETE all other pending bookings, send email.
- * If all full → keep as pending, send "all full" email.
- */
-export async function tryAssignSubmission(
-  bookingIds: string[],
-  baseUrl: string
+export async function assignByEmail(
+  email: string,
+  baseUrl: string,
+  options: { sendNoSpotsEmail?: boolean } = {}
 ): Promise<string | null> {
-  const { data: bookings } = await supabase
+  const { sendNoSpotsEmail: shouldSendNoSpots = true } = options;
+
+  const { data: pending } = await supabase
     .from("bookings")
     .select("*, sessions(*)")
-    .in("id", bookingIds)
+    .eq("email", email)
     .eq("status", "pending")
     .order("preference_order", { ascending: true });
 
-  if (!bookings?.length) return null;
+  if (!pending?.length) return null;
 
-  for (const booking of bookings) {
+  for (const booking of pending) {
     const count = await confirmedCount(booking.session_id);
     if (count < booking.sessions.max_participants) {
       await supabase
@@ -57,104 +46,95 @@ export async function tryAssignSubmission(
         .update({ status: "confirmed" })
         .eq("id", booking.id);
 
-      // Immediately delete all other pending bookings for this person
-      const otherIds = bookingIds.filter((id) => id !== booking.id);
-      if (otherIds.length) {
-        await supabase.from("bookings").delete().in("id", otherIds);
-      }
-      await deleteOtherBookingsForEmail(booking.id, booking.email);
+      await supabase
+        .from("bookings")
+        .delete()
+        .eq("email", email)
+        .neq("id", booking.id);
 
       await sendConfirmationEmail(
-        booking.email,
+        email,
         booking.full_name,
         booking.id,
         booking.sessions,
         baseUrl
       );
 
-      return booking.id;
+      return booking.session_id;
     }
   }
 
-  await sendNoSpotsEmail(bookings[0].email, bookings[0].full_name);
+  if (shouldSendNoSpots) {
+    await sendNoSpotsEmail(pending[0].email, pending[0].full_name);
+  }
   return null;
 }
 
 /**
- * After a spot opens in a session, fill it from pending bookings.
- * Skips anyone already confirmed elsewhere.
- * On confirm → deletes all their other pending bookings.
+ * Backfill after a spot opens in a session.
+ * Finds pending candidates for the session (ordered by created_at).
+ * For each, runs assignByEmail which tries THEIR preferences in order.
+ * If they land in this session, the slot is filled.
+ * If they land elsewhere (higher preference), try the next candidate.
+ * Chain: if assignByEmail confirms someone, their other bookings are deleted,
+ * which doesn't free confirmed slots — so chain is naturally bounded.
+ * Max 10 total iterations as safety.
  */
 export async function backfillSession(
-  sessionId: string,
+  freedSessionId: string,
   baseUrl: string
 ): Promise<void> {
+  let iterations = 0;
+  const MAX = 10;
+
   const { data: session } = await supabase
     .from("sessions")
     .select("*")
-    .eq("id", sessionId)
+    .eq("id", freedSessionId)
     .single();
   if (!session) return;
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const count = await confirmedCount(sessionId);
+  const triedEmails = new Set<string>();
+
+  while (iterations < MAX) {
+    iterations++;
+
+    const count = await confirmedCount(freedSessionId);
     if (count >= session.max_participants) break;
 
     const { data: candidates } = await supabase
       .from("bookings")
-      .select("*")
-      .eq("session_id", sessionId)
+      .select("id, email")
+      .eq("session_id", freedSessionId)
       .eq("status", "pending")
-      .order("preference_order", { ascending: true })
       .order("created_at", { ascending: true });
 
     if (!candidates?.length) break;
 
-    let filled = false;
+    const candidate = candidates.find((c) => !triedEmails.has(c.email));
+    if (!candidate) break;
 
-    for (const candidate of candidates) {
-      // Skip anyone already confirmed in another session
-      const { count: alreadyConfirmed } = await supabase
-        .from("bookings")
-        .select("*", { count: "exact", head: true })
-        .eq("email", candidate.email)
-        .eq("status", "confirmed");
+    triedEmails.add(candidate.email);
 
-      if ((alreadyConfirmed ?? 0) > 0) {
-        // They're already confirmed elsewhere — delete this stale pending
-        await supabase.from("bookings").delete().eq("id", candidate.id);
-        continue;
-      }
+    const { count: alreadyConfirmed } = await supabase
+      .from("bookings")
+      .select("*", { count: "exact", head: true })
+      .eq("email", candidate.email)
+      .eq("status", "confirmed");
 
-      // Confirm this candidate
-      await supabase
-        .from("bookings")
-        .update({ status: "confirmed" })
-        .eq("id", candidate.id);
-
-      await deleteOtherBookingsForEmail(candidate.id, candidate.email);
-
-      await sendConfirmationEmail(
-        candidate.email,
-        candidate.full_name,
-        candidate.id,
-        session,
-        baseUrl
-      );
-
-      filled = true;
-      break;
+    if ((alreadyConfirmed ?? 0) > 0) {
+      await supabase.from("bookings").delete().eq("id", candidate.id);
+      continue;
     }
 
-    if (!filled) break;
+    await assignByEmail(candidate.email, baseUrl, { sendNoSpotsEmail: false });
   }
 }
 
 /**
- * Cleanup: find emails with multiple confirmed bookings.
- * Keep only the one with the lowest preference_order, delete the rest.
- * Returns number of duplicate bookings removed.
+ * Cleanup: find any email with multiple confirmed bookings.
+ * Keep only the one with the lowest preference_order (then earliest created_at).
+ * Delete the rest. Returns count of duplicates removed.
  */
 export async function cleanupDuplicateConfirmations(): Promise<number> {
   const { data: allConfirmed } = await supabase
@@ -186,11 +166,17 @@ export async function cleanupDuplicateConfirmations(): Promise<number> {
 
 /**
  * Batch assignment for all upcoming sessions.
- * First cleans up duplicates, then fills sessions, then notifies hopeless pending.
+ * 1) Cleanup duplicate confirmations
+ * 2) Backfill every upcoming session
+ * 3) Notify people whose ALL preferences are full, then delete their pending
  */
 export async function runBatchAssignment(
   baseUrl: string
-): Promise<{ confirmed: number; notified_no_spots: number; duplicates_removed: number }> {
+): Promise<{
+  confirmed: number;
+  notified_no_spots: number;
+  duplicates_removed: number;
+}> {
   const duplicatesRemoved = await cleanupDuplicateConfirmations();
 
   const { count: beforeCount } = await supabase
@@ -217,7 +203,6 @@ export async function runBatchAssignment(
 
   const totalConfirmed = (afterCount ?? 0) - (beforeCount ?? 0);
 
-  // Notify participants whose ALL preference sessions are full
   let totalNotified = 0;
   const { data: allPending } = await supabase
     .from("bookings")
@@ -250,18 +235,20 @@ export async function runBatchAssignment(
 
       if (allFull) {
         await sendNoSpotsFinalEmail(booking.email, booking.full_name, baseUrl);
-
         await supabase
           .from("bookings")
           .delete()
           .eq("email", booking.email)
           .eq("status", "pending");
-
         emailsSeen.add(booking.email);
         totalNotified++;
       }
     }
   }
 
-  return { confirmed: totalConfirmed, notified_no_spots: totalNotified, duplicates_removed: duplicatesRemoved };
+  return {
+    confirmed: totalConfirmed,
+    notified_no_spots: totalNotified,
+    duplicates_removed: duplicatesRemoved,
+  };
 }

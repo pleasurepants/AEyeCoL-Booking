@@ -7,12 +7,17 @@ export async function POST(req: NextRequest) {
   const { booking_id } = await req.json();
 
   if (!booking_id) {
-    return NextResponse.json({ error: "Missing booking_id" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing booking_id" },
+      { status: 400 }
+    );
   }
 
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
-    .select("id, session_id, status, email, full_name, sessions(date, start_time, end_time, location, room)")
+    .select(
+      "id, session_id, status, email, full_name, sessions(date, start_time, end_time, location, room)"
+    )
     .eq("id", booking_id)
     .single();
 
@@ -30,8 +35,6 @@ export async function POST(req: NextRequest) {
     room: string | null;
   };
 
-  // Also delete any other pending bookings from same email
-  // (their other preferences are no longer valid after self-cancellation)
   const { error: deleteError } = await supabase
     .from("bookings")
     .delete()
@@ -41,14 +44,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
-  // Delete remaining pending bookings for this person
-  await supabase
-    .from("bookings")
-    .delete()
-    .eq("email", booking.email)
-    .eq("status", "pending");
+  // Delete ALL remaining bookings for this person (clean slate on self-cancel)
+  await supabase.from("bookings").delete().eq("email", booking.email);
 
-  // Send cancellation confirmation to the person who cancelled
   if (wasConfirmed) {
     await sendCancellationConfirmationEmail(
       booking.email,
@@ -57,13 +55,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Backfill the freed spot with chain logic
-  const baseUrl =
-    req.headers.get("x-forwarded-proto") && req.headers.get("host")
-      ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
-      : req.nextUrl.origin;
+  // Backfill the freed spot (chain up to 10 iterations inside backfillSession)
+  if (wasConfirmed) {
+    const baseUrl =
+      req.headers.get("x-forwarded-proto") && req.headers.get("host")
+        ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
+        : req.nextUrl.origin;
 
-  await backfillSession(sessionId, baseUrl);
+    await backfillSession(sessionId, baseUrl);
+  }
 
   return NextResponse.json({ ok: true });
 }

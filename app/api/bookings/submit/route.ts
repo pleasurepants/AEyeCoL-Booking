@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { tryAssignSubmission } from "@/lib/assign";
+import { assignByEmail } from "@/lib/assign";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -13,7 +13,10 @@ export async function POST(req: NextRequest) {
   };
 
   if (!full_name || !email || !sessions?.length) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing required fields" },
+      { status: 400 }
+    );
   }
 
   const rows = sessions.map((s) => ({
@@ -26,30 +29,21 @@ export async function POST(req: NextRequest) {
     status: "pending",
   }));
 
-  const { data: inserted, error: insertError } = await supabase
-    .from("bookings")
-    .insert(rows)
-    .select("id, preference_order")
-    .order("preference_order", { ascending: true });
+  const { error: insertError } = await supabase.from("bookings").insert(rows);
 
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
-
-  const bookingIds = (inserted ?? []).map((b) => b.id);
 
   const baseUrl =
     req.headers.get("x-forwarded-proto") && req.headers.get("host")
       ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
       : req.nextUrl.origin;
 
-  // tryAssignSubmission sends confirmation email on success,
-  // or "no spots" email if all preferences are full
-  const confirmedId = await tryAssignSubmission(bookingIds, baseUrl);
+  const confirmedSessionId = await assignByEmail(email, baseUrl);
 
   return NextResponse.json({
     ok: true,
-    confirmed: !!confirmedId,
-    confirmed_booking_id: confirmedId,
+    confirmed: !!confirmedSessionId,
   });
 }

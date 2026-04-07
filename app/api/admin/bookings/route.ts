@@ -18,7 +18,10 @@ export async function POST(req: NextRequest) {
   };
 
   if (!booking_id || !action) {
-    return NextResponse.json({ error: "Missing booking_id or action" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing booking_id or action" },
+      { status: 400 }
+    );
   }
 
   const { data: booking, error: fetchErr } = await supabase
@@ -37,8 +40,12 @@ export async function POST(req: NextRequest) {
     const wasConfirmed = booking.status === "confirmed";
     const sessionId = booking.session_id;
 
-    const { error: delErr } = await supabase.from("bookings").delete().eq("id", booking_id);
-    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+    const { error: delErr } = await supabase
+      .from("bookings")
+      .delete()
+      .eq("id", booking_id);
+    if (delErr)
+      return NextResponse.json({ error: delErr.message }, { status: 500 });
 
     if (wasConfirmed) {
       await backfillSession(sessionId, baseUrl);
@@ -47,22 +54,40 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "confirm") {
-    // Delete any existing confirmed bookings for this person (enforce one-confirmed rule)
-    await supabase
+    // If this person is already confirmed in another session, delete that
+    // and backfill the vacated session
+    const { data: existingConfirmed } = await supabase
       .from("bookings")
-      .delete()
+      .select("id, session_id")
       .eq("email", booking.email)
       .eq("status", "confirmed")
       .neq("id", booking_id);
 
-    await supabase.from("bookings").update({ status: "confirmed" }).eq("id", booking_id);
+    const vacatedSessionIds: string[] = [];
+    if (existingConfirmed?.length) {
+      vacatedSessionIds.push(
+        ...existingConfirmed.map((b) => b.session_id)
+      );
+      await supabase
+        .from("bookings")
+        .delete()
+        .in(
+          "id",
+          existingConfirmed.map((b) => b.id)
+        );
+    }
 
-    // Delete all pending bookings for this person
+    await supabase
+      .from("bookings")
+      .update({ status: "confirmed" })
+      .eq("id", booking_id);
+
+    // Delete all other bookings for this person (enforce one-confirmed rule)
     await supabase
       .from("bookings")
       .delete()
       .eq("email", booking.email)
-      .eq("status", "pending");
+      .neq("id", booking_id);
 
     await sendConfirmationEmail(
       booking.email,
@@ -72,18 +97,29 @@ export async function POST(req: NextRequest) {
       baseUrl
     );
 
+    // Backfill any sessions that lost a confirmed person
+    for (const sid of vacatedSessionIds) {
+      await backfillSession(sid, baseUrl);
+    }
+
     return NextResponse.json({ ok: true });
   }
 
   if (action === "set-pending") {
-    await supabase.from("bookings").update({ status: "pending" }).eq("id", booking_id);
+    await supabase
+      .from("bookings")
+      .update({ status: "pending" })
+      .eq("id", booking_id);
     return NextResponse.json({ ok: true, freed_session: booking.session_id });
   }
 
   if (action === "move") {
     const { target_session_id } = body;
     if (!target_session_id) {
-      return NextResponse.json({ error: "Missing target_session_id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing target_session_id" },
+        { status: 400 }
+      );
     }
 
     const { data: targetSession } = await supabase
@@ -93,7 +129,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!targetSession) {
-      return NextResponse.json({ error: "Target session not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Target session not found" },
+        { status: 404 }
+      );
     }
 
     const oldSessionId = booking.session_id;
