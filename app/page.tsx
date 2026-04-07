@@ -65,7 +65,8 @@ export default function Home() {
       .order("start_time", { ascending: true });
 
     if (fetchError) {
-      setError("Failed to load available sessions. Please refresh and try again.");
+      console.error("Session fetch error:", fetchError);
+      setError("Failed to load sessions: " + fetchError.message);
       setLoading(false);
       return;
     }
@@ -97,7 +98,8 @@ export default function Home() {
     });
 
     if (insertError) {
-      setError("Failed to submit booking. Please try again.");
+      console.error("Booking insert error:", insertError);
+      setError("Failed to submit booking: " + insertError.message);
       setSubmitting(false);
       return;
     }
