@@ -9,6 +9,8 @@ interface Booking {
   email: string;
   phone: string | null;
   comments: string | null;
+  preference_order: number | null;
+  status: string | null;
   created_at: string;
 }
 
@@ -18,6 +20,7 @@ interface Session {
   start_time: string;
   end_time: string;
   location: string;
+  room: string | null;
   max_participants: number;
   notes: string | null;
   bookings: Booking[];
@@ -28,6 +31,7 @@ interface SessionForm {
   start_time: string;
   end_time: string;
   location: string;
+  room: string;
   max_participants: number;
   notes: string;
 }
@@ -49,7 +53,8 @@ function getDefaultSessionForm(): SessionForm {
     date: "",
     start_time: toTimeStr(start),
     end_time: toTimeStr(end),
-    location: "",
+    location: "Marsstraße 20",
+    room: "",
     max_participants: 4,
     notes: "",
   };
@@ -149,6 +154,7 @@ export default function AdminPage() {
         start_time: form.start_time,
         end_time: form.end_time,
         location: form.location,
+        room: form.room || null,
         max_participants: form.max_participants,
         notes: form.notes || null,
       }),
@@ -278,7 +284,21 @@ export default function AdminPage() {
                     setForm({ ...form, location: e.target.value })
                   }
                   className={inputClass}
-                  placeholder="e.g. Science Building A301"
+                  placeholder="e.g. Marsstraße 20"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Room <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.room}
+                  onChange={(e) =>
+                    setForm({ ...form, room: e.target.value })
+                  }
+                  className={inputClass}
+                  placeholder="e.g. Room 301"
                 />
               </div>
               <div>
@@ -376,6 +396,7 @@ export default function AdminPage() {
                     <div className="mt-0.5 text-sm text-gray-500">
                       {formatTime(session.start_time)} –{" "}
                       {formatTime(session.end_time)} · {session.location}
+                      {session.room && `, ${session.room}`}
                     </div>
                     {session.notes && (
                       <p className="mt-1 text-xs text-gray-400">
@@ -426,6 +447,8 @@ export default function AdminPage() {
                           <th className="px-5 py-2.5 font-medium">Name</th>
                           <th className="px-5 py-2.5 font-medium">Email</th>
                           <th className="px-5 py-2.5 font-medium">Phone</th>
+                          <th className="px-5 py-2.5 font-medium">Pref</th>
+                          <th className="px-5 py-2.5 font-medium">Status</th>
                           <th className="px-5 py-2.5 font-medium">Comments</th>
                           <th className="px-5 py-2.5 font-medium">Booked At</th>
                         </tr>
@@ -444,6 +467,24 @@ export default function AdminPage() {
                             </td>
                             <td className="whitespace-nowrap px-5 py-2.5 text-gray-600">
                               {b.phone || "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-5 py-2.5">
+                              {b.preference_order === 1 ? (
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">1st</span>
+                              ) : b.preference_order === 2 ? (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">2nd</span>
+                              ) : b.preference_order === 3 ? (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">3rd</span>
+                              ) : "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-5 py-2.5">
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                b.status === "confirmed" ? "bg-green-100 text-green-700" :
+                                b.status === "pending" ? "bg-amber-100 text-amber-700" :
+                                "bg-gray-100 text-gray-600"
+                              }`}>
+                                {b.status || "—"}
+                              </span>
                             </td>
                             <td className="max-w-[200px] truncate px-5 py-2.5 text-gray-500">
                               {b.comments || "—"}

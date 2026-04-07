@@ -13,6 +13,7 @@ interface BookingDetails {
     start_time: string;
     end_time: string;
     location: string;
+    room: string | null;
     notes: string | null;
   };
 }
@@ -58,7 +59,7 @@ function CancelContent() {
 
     const { data, error: fetchError } = await supabase
       .from("bookings")
-      .select("id, full_name, email, sessions(date, start_time, end_time, location, notes)")
+      .select("id, full_name, email, sessions(date, start_time, end_time, location, room, notes)")
       .eq("id", token)
       .single();
 
@@ -183,7 +184,10 @@ function CancelContent() {
                 </div>
                 <div className="flex justify-between">
                   <dt className="font-medium text-gray-500">Location</dt>
-                  <dd>{booking.sessions.location}</dd>
+                  <dd>
+                    {booking.sessions.location}
+                    {booking.sessions.room && `, ${booking.sessions.room}`}
+                  </dd>
                 </div>
               </dl>
             </div>

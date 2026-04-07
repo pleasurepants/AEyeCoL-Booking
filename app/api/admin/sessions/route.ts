@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
     start_time: body.start_time,
     end_time: body.end_time,
     location: body.location,
+    room: body.room ?? null,
     max_participants: body.max_participants,
     notes: body.notes ?? null,
   }).select();
