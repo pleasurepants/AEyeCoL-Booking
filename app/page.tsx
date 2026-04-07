@@ -108,7 +108,6 @@ export default function Home() {
   }
 
   function handleFirstChoice(session: Session) {
-    if (isFull(session)) return;
     setFirstChoice(session);
     setBackup1(null);
     setBackup2(null);
@@ -281,7 +280,7 @@ export default function Home() {
               <button onClick={() => setStep("info")} className="text-sm text-blue-600 hover:underline">← Back</button>
             </div>
             <p className="mb-5 text-sm text-gray-500">
-              Choose the session you would most like to attend. Sessions marked &quot;Full&quot; can only be selected as a backup.
+              Choose the session you would most like to attend.
             </p>
 
             {loading ? (
@@ -297,7 +296,6 @@ export default function Home() {
                     key={s.id}
                     session={s}
                     onClick={() => handleFirstChoice(s)}
-                    disabled={isFull(s)}
                   />
                 ))}
               </div>
@@ -368,13 +366,11 @@ function SessionCard({
   onClick,
   selected,
   badge,
-  disabled,
 }: {
   session: Session;
   onClick: () => void;
   selected?: boolean;
   badge?: string | null;
-  disabled?: boolean;
 }) {
   const full = isFull(session);
   const spots = session.max_participants - session.confirmed_count;
@@ -382,13 +378,10 @@ function SessionCard({
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
       className={`rounded-xl border p-5 text-left transition ${
         selected
           ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-          : disabled
-            ? "cursor-not-allowed border-gray-200 bg-gray-50 opacity-70"
-            : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
+          : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
       }`}
     >
       <div className="mb-1 text-sm font-semibold text-gray-900">

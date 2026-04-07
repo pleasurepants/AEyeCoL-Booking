@@ -98,6 +98,7 @@ export async function backfillSession(
     .select("*")
     .eq("session_id", sessionId)
     .eq("status", "pending")
+    .order("preference_order", { ascending: true })
     .order("created_at", { ascending: true })
     .limit(1);
 
