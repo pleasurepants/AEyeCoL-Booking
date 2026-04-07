@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -32,6 +32,14 @@ function formatTime(timeStr: string) {
 }
 
 export default function CancelPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gray-50"><p className="text-gray-400">Loading…</p></div>}>
+      <CancelContent />
+    </Suspense>
+  );
+}
+
+function CancelContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
