@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
-import { assignByEmail } from "@/lib/assign";
+import { tryConfirm } from "@/lib/assign";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -17,6 +17,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Missing required fields" },
       { status: 400 }
+    );
+  }
+
+  const { count: confirmedExisting } = await supabase
+    .from("bookings")
+    .select("*", { count: "exact", head: true })
+    .eq("email", email)
+    .eq("status", "confirmed");
+
+  if ((confirmedExisting ?? 0) > 0) {
+    return NextResponse.json(
+      { error: "You already have a confirmed booking" },
+      { status: 409 }
+    );
+  }
+
+  const { count: pendingExisting } = await supabase
+    .from("bookings")
+    .select("*", { count: "exact", head: true })
+    .eq("email", email)
+    .eq("status", "pending");
+
+  if ((pendingExisting ?? 0) > 0) {
+    return NextResponse.json(
+      { error: "You already have a pending application" },
+      { status: 409 }
     );
   }
 
@@ -44,10 +70,7 @@ export async function POST(req: NextRequest) {
       ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
       : req.nextUrl.origin;
 
-  const confirmedSessionId = await assignByEmail(email, baseUrl);
+  const confirmedId = await tryConfirm(email, baseUrl);
 
-  return NextResponse.json({
-    ok: true,
-    confirmed: !!confirmedSessionId,
-  });
+  return NextResponse.json({ ok: true, confirmed: !!confirmedId });
 }

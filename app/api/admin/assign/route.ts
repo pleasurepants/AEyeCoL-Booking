@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runBatchAssignment } from "@/lib/assign";
+import { runNightlyAssignment } from "@/lib/assign";
 
 function getBaseUrl(req: NextRequest) {
   return req.headers.get("x-forwarded-proto") && req.headers.get("host")
@@ -9,13 +9,12 @@ function getBaseUrl(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const baseUrl = getBaseUrl(req);
-  const result = await runBatchAssignment(baseUrl);
+  const result = await runNightlyAssignment(baseUrl);
 
   return NextResponse.json({
     ok: true,
     confirmed: result.confirmed,
-    notified_no_spots: result.notified_no_spots,
-    duplicates_removed: result.duplicates_removed,
+    no_spots: result.no_spots,
   });
 }
 
@@ -28,12 +27,11 @@ export async function GET(req: NextRequest) {
   }
 
   const baseUrl = getBaseUrl(req);
-  const result = await runBatchAssignment(baseUrl);
+  const result = await runNightlyAssignment(baseUrl);
 
   return NextResponse.json({
     ok: true,
     confirmed: result.confirmed,
-    notified_no_spots: result.notified_no_spots,
-    duplicates_removed: result.duplicates_removed,
+    no_spots: result.no_spots,
   });
 }

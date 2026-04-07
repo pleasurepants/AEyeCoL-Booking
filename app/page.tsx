@@ -150,7 +150,7 @@ export default function Home() {
     ];
 
     try {
-      const res = await fetch("/api/bookings/submit", {
+      const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

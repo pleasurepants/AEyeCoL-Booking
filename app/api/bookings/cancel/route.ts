@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // 1. Get the booking, store session_id and email
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
     .select(
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
 
-  const sessionId = booking.session_id;
+  const freedSessionId = booking.session_id;
   const wasConfirmed = booking.status === "confirmed";
   const sessionInfo = booking.sessions as unknown as {
     date: string;
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
     room: string | null;
   };
 
+  // 2. Delete the booking
   const { error: deleteError } = await supabase
     .from("bookings")
     .delete()
@@ -44,25 +46,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
-  // Delete ALL remaining bookings for this person (clean slate on self-cancel)
-  await supabase.from("bookings").delete().eq("email", booking.email);
+  // 3. Send cancellation confirmation email
+  await sendCancellationConfirmationEmail(
+    booking.email,
+    booking.full_name,
+    sessionInfo
+  );
 
-  if (wasConfirmed) {
-    await sendCancellationConfirmationEmail(
-      booking.email,
-      booking.full_name,
-      sessionInfo
-    );
-  }
-
-  // Backfill the freed spot (chain up to 10 iterations inside backfillSession)
+  // 4. Backfill the freed session
   if (wasConfirmed) {
     const baseUrl =
       req.headers.get("x-forwarded-proto") && req.headers.get("host")
         ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
         : req.nextUrl.origin;
 
-    await backfillSession(sessionId, baseUrl);
+    await backfillSession(freedSessionId, baseUrl);
   }
 
   return NextResponse.json({ ok: true });

@@ -226,8 +226,7 @@ export default function AdminPage() {
       else {
         const parts: string[] = [];
         parts.push(`${body.confirmed} confirmed`);
-        if (body.notified_no_spots > 0) parts.push(`${body.notified_no_spots} notified (no spots)`);
-        if (body.duplicates_removed > 0) parts.push(`${body.duplicates_removed} duplicate${body.duplicates_removed !== 1 ? "s" : ""} cleaned up`);
+        if (body.no_spots > 0) parts.push(`${body.no_spots} notified (no spots)`);
         setSuccess(`Assignment complete: ${parts.join(", ")}`);
         fetchSessions();
       }
