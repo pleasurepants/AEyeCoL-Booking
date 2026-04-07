@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   if (action === "confirm") {
     await supabase.from("bookings").update({ status: "confirmed" }).eq("id", booking_id);
 
-    // Delete other pending bookings for same participant
+    // Admin manual confirm: delete other pending bookings for this person
     await supabase
       .from("bookings")
       .delete()
@@ -69,11 +69,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "set-pending") {
-    const sessionId = booking.session_id;
     await supabase.from("bookings").update({ status: "pending" }).eq("id", booking_id);
-
-    // A spot freed up — but don't auto-backfill since admin is managing manually
-    return NextResponse.json({ ok: true, freed_session: sessionId });
+    return NextResponse.json({ ok: true, freed_session: booking.session_id });
   }
 
   if (action === "move") {
@@ -108,7 +105,6 @@ export async function POST(req: NextRequest) {
       baseUrl
     );
 
-    // If the moved booking was confirmed, backfill the old session
     if (booking.status === "confirmed") {
       await backfillSession(oldSessionId, baseUrl);
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { backfillSession } from "@/lib/assign";
+import { sendCancellationConfirmationEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const { booking_id } = await req.json();
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
-    .select("id, session_id, status")
+    .select("id, session_id, status, email, full_name, sessions(*)")
     .eq("id", booking_id)
     .single();
 
@@ -20,7 +21,10 @@ export async function POST(req: NextRequest) {
   }
 
   const sessionId = booking.session_id;
+  const wasConfirmed = booking.status === "confirmed";
 
+  // Also delete any other pending bookings from same email
+  // (their other preferences are no longer valid after self-cancellation)
   const { error: deleteError } = await supabase
     .from("bookings")
     .delete()
@@ -30,7 +34,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
-  // Always try to backfill — if a confirmed spot freed up, fill it
+  // Delete remaining pending bookings for this person
+  await supabase
+    .from("bookings")
+    .delete()
+    .eq("email", booking.email)
+    .eq("status", "pending");
+
+  // Send cancellation confirmation to the person who cancelled
+  if (wasConfirmed) {
+    await sendCancellationConfirmationEmail(
+      booking.email,
+      booking.full_name,
+      booking.sessions
+    );
+  }
+
+  // Backfill the freed spot with chain logic
   const baseUrl =
     req.headers.get("x-forwarded-proto") && req.headers.get("host")
       ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
