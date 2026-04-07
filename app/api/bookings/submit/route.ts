@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabase";
 import { assignByEmail } from "@/lib/assign";
 
@@ -19,6 +20,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const submissionId = randomUUID();
+
   const rows = sessions.map((s) => ({
     session_id: s.session_id,
     preference_order: s.preference_order,
@@ -27,6 +30,7 @@ export async function POST(req: NextRequest) {
     phone: phone || null,
     comments: comments || null,
     status: "pending",
+    submission_id: submissionId,
   }));
 
   const { error: insertError } = await supabase.from("bookings").insert(rows);
