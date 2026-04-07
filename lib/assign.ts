@@ -10,18 +10,36 @@ async function confirmedCount(sessionId: string): Promise<number> {
   return count ?? 0;
 }
 
+export interface TryConfirmResult {
+  confirmedId: string | null;
+  vacatedSessionId: string | null;
+}
+
 /**
  * CORE function — call whenever something changes.
- * 1. Find all pending bookings for this email, ordered by preference_order ASC
- * 2. For each: count confirmed for that session. If < max → confirm, delete
- *    all OTHER bookings for this email, send confirmation email, STOP.
- * 3. If no preference had space → do nothing, leave all pending.
- * Returns the confirmed booking id, or null.
+ *
+ * CASE A: person is NOT confirmed anywhere
+ *   Try pending in preference order. First session with room → confirm.
+ *   Delete WORSE pending (higher preference_order). KEEP BETTER pending
+ *   so the person can be upgraded later if a better session opens.
+ *
+ * CASE B: person IS already confirmed
+ *   Only try pending that are BETTER than current confirmation.
+ *   Delete any STALE pending that are worse than current confirmation.
+ *   If a better session has room → upgrade: confirm new, delete old confirmed,
+ *   return vacatedSessionId so caller can chain-backfill.
  */
 export async function tryConfirm(
   email: string,
   baseUrl: string
-): Promise<string | null> {
+): Promise<TryConfirmResult> {
+  const { data: existing } = await supabase
+    .from("bookings")
+    .select("id, session_id, preference_order")
+    .eq("email", email)
+    .eq("status", "confirmed")
+    .maybeSingle();
+
   const { data: pending } = await supabase
     .from("bookings")
     .select("*, sessions(*)")
@@ -29,8 +47,63 @@ export async function tryConfirm(
     .eq("status", "pending")
     .order("preference_order", { ascending: true });
 
-  if (!pending?.length) return null;
+  if (!pending?.length) return { confirmedId: null, vacatedSessionId: null };
 
+  // --- CASE B: already confirmed ---
+  if (existing) {
+    // Delete stale pending that are worse-or-equal to current confirmed
+    const staleIds = pending
+      .filter((p) => p.preference_order >= existing.preference_order)
+      .map((p) => p.id);
+    if (staleIds.length) {
+      await supabase.from("bookings").delete().in("id", staleIds);
+    }
+
+    const better = pending.filter(
+      (p) => p.preference_order < existing.preference_order
+    );
+    if (!better.length) return { confirmedId: null, vacatedSessionId: null };
+
+    for (const booking of better) {
+      const count = await confirmedCount(booking.session_id);
+      if (count < booking.sessions.max_participants) {
+        // Upgrade to better session
+        await supabase
+          .from("bookings")
+          .update({ status: "confirmed" })
+          .eq("id", booking.id);
+
+        const vacatedSessionId = existing.session_id;
+        await supabase.from("bookings").delete().eq("id", existing.id);
+
+        // Delete worse pending among the better set
+        const worseIds = better
+          .filter(
+            (p) =>
+              p.id !== booking.id &&
+              p.preference_order > booking.preference_order
+          )
+          .map((p) => p.id);
+        if (worseIds.length) {
+          await supabase.from("bookings").delete().in("id", worseIds);
+        }
+
+        await sendConfirmationEmail(
+          email,
+          booking.full_name,
+          booking.id,
+          booking.sessions,
+          baseUrl
+        );
+
+        return { confirmedId: booking.id, vacatedSessionId };
+      }
+    }
+
+    return { confirmedId: null, vacatedSessionId: null };
+  }
+
+  // --- CASE A: not confirmed anywhere ---
   for (const booking of pending) {
     const count = await confirmedCount(booking.session_id);
     if (count < booking.sessions.max_participants) {
@@ -39,11 +112,17 @@ export async function tryConfirm(
         .update({ status: "confirmed" })
         .eq("id", booking.id);
 
-      await supabase
-        .from("bookings")
-        .delete()
-        .eq("email", email)
-        .neq("id", booking.id);
+      // Delete only WORSE pending, KEEP better pending for future upgrades
+      const worseIds = pending
+        .filter(
+          (p) =>
+            p.id !== booking.id &&
+            p.preference_order > booking.preference_order
+        )
+        .map((p) => p.id);
+      if (worseIds.length) {
+        await supabase.from("bookings").delete().in("id", worseIds);
+      }
 
       await sendConfirmationEmail(
         email,
@@ -53,24 +132,27 @@ export async function tryConfirm(
         baseUrl
       );
 
-      return booking.id;
+      return { confirmedId: booking.id, vacatedSessionId: null };
     }
   }
 
-  return null;
+  return { confirmedId: null, vacatedSessionId: null };
 }
 
 /**
- * Backfill a freed session after a cancellation.
- * Find all PENDING bookings for this session, unique emails, ordered by created_at.
- * For each email: check if session still has space → if yes, tryConfirm(email).
- * tryConfirm may confirm them into THIS session or a higher preference.
- * Stop when session is full.
+ * Backfill a freed session. For each pending person (by created_at):
+ * - tryConfirm may confirm them into THIS session or upgrade them to a better one
+ * - If someone vacated another session → chain-backfill that session
+ * - Stop when session is full or no more candidates
+ * depth limits chain to 10 levels.
  */
 export async function backfillSession(
   sessionId: string,
-  baseUrl: string
+  baseUrl: string,
+  depth: number = 0
 ): Promise<void> {
+  if (depth >= 10) return;
+
   const { data: session } = await supabase
     .from("sessions")
     .select("max_participants")
@@ -78,37 +160,40 @@ export async function backfillSession(
     .single();
   if (!session) return;
 
-  const { data: candidates } = await supabase
-    .from("bookings")
-    .select("email")
-    .eq("session_id", sessionId)
-    .eq("status", "pending")
-    .order("created_at", { ascending: true });
+  const tried = new Set<string>();
 
-  if (!candidates?.length) return;
-
-  const seen = new Set<string>();
-  const emails: string[] = [];
-  for (const c of candidates) {
-    if (!seen.has(c.email)) {
-      seen.add(c.email);
-      emails.push(c.email);
-    }
-  }
-
-  for (const email of emails) {
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
     const count = await confirmedCount(sessionId);
     if (count >= session.max_participants) break;
-    await tryConfirm(email, baseUrl);
+
+    const { data: candidates } = await supabase
+      .from("bookings")
+      .select("email")
+      .eq("session_id", sessionId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+
+    if (!candidates?.length) break;
+
+    const next = candidates.find((c) => !tried.has(c.email));
+    if (!next) break;
+
+    tried.add(next.email);
+
+    const result = await tryConfirm(next.email, baseUrl);
+
+    if (result.vacatedSessionId) {
+      await backfillSession(result.vacatedSessionId, baseUrl, depth + 1);
+    }
   }
 }
 
 /**
  * Nightly assignment.
- * 1. Find all emails with at least one pending booking → tryConfirm each
- * 2. Find emails that STILL have pending but ALL their sessions are full
- *    → send "no spots" email, delete their pending bookings
- * 3. Return { confirmed, no_spots }
+ * 1. For each email with pending → tryConfirm (may upgrade or first-confirm)
+ * 2. Chain-backfill any vacated sessions
+ * 3. Notify emails whose ALL pending sessions are full → delete their pending
  */
 export async function runNightlyAssignment(
   baseUrl: string
@@ -128,7 +213,10 @@ export async function runNightlyAssignment(
     for (const b of allPending) {
       if (seen.has(b.email)) continue;
       seen.add(b.email);
-      await tryConfirm(b.email, baseUrl);
+      const result = await tryConfirm(b.email, baseUrl);
+      if (result.vacatedSessionId) {
+        await backfillSession(result.vacatedSessionId, baseUrl);
+      }
     }
   }
 
@@ -139,6 +227,7 @@ export async function runNightlyAssignment(
 
   const confirmed = (afterCount ?? 0) - (beforeCount ?? 0);
 
+  // Notify people whose ALL pending sessions are now full
   let noSpots = 0;
   const { data: remainingPending } = await supabase
     .from("bookings")
@@ -162,6 +251,14 @@ export async function runNightlyAssignment(
     }
 
     for (const [email, info] of emailMap) {
+      // Skip if this person is already confirmed somewhere
+      const { count: isConfirmed } = await supabase
+        .from("bookings")
+        .select("*", { count: "exact", head: true })
+        .eq("email", email)
+        .eq("status", "confirmed");
+      if ((isConfirmed ?? 0) > 0) continue;
+
       let allFull = true;
       for (const s of info.sessions) {
         const c = await confirmedCount(s.session_id);

@@ -36,11 +36,11 @@ export async function POST(req: NextRequest) {
     room: string | null;
   };
 
-  // 2. Delete the booking
+  // 2. Delete this booking + all other bookings for this person (full withdrawal)
   const { error: deleteError } = await supabase
     .from("bookings")
     .delete()
-    .eq("id", booking_id);
+    .eq("email", booking.email);
 
   if (deleteError) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });

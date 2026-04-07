@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
       : req.nextUrl.origin;
 
-  const confirmedId = await tryConfirm(email, baseUrl);
+  const result = await tryConfirm(email, baseUrl);
 
-  return NextResponse.json({ ok: true, confirmed: !!confirmedId });
+  return NextResponse.json({ ok: true, confirmed: !!result.confirmedId });
 }
