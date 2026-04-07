@@ -66,8 +66,9 @@ export default function Home() {
 
     const { data: sessionData, error: fetchError } = await supabase
       .from("sessions")
-      .select("id, date, start_time, end_time, location, room, max_participants, notes")
+      .select("id, date, start_time, end_time, location, room, max_participants, notes, status")
       .gte("date", today)
+      .neq("status", "cancelled")
       .order("date", { ascending: true })
       .order("start_time", { ascending: true });
 
