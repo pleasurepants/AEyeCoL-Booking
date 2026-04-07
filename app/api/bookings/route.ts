@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { tryConfirm } from "@/lib/assign";
+import { sendNoSpotsEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -67,6 +68,10 @@ export async function POST(req: NextRequest) {
       : req.nextUrl.origin;
 
   const result = await tryConfirm(email, baseUrl);
+
+  if (!result.confirmedId) {
+    await sendNoSpotsEmail(email, full_name);
+  }
 
   return NextResponse.json({ ok: true, confirmed: !!result.confirmedId });
 }
