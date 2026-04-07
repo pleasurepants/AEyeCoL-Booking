@@ -224,9 +224,11 @@ export default function AdminPage() {
       const body = await res.json();
       if (!res.ok) { setError("Assignment failed: " + (body?.error ?? "Unknown")); }
       else {
-        setSuccess(
-          `Confirmed ${body.confirmed} participant${body.confirmed !== 1 ? "s" : ""}, notified ${body.notified_no_spots} of no available spots`
-        );
+        const parts: string[] = [];
+        parts.push(`${body.confirmed} confirmed`);
+        if (body.notified_no_spots > 0) parts.push(`${body.notified_no_spots} notified (no spots)`);
+        if (body.duplicates_removed > 0) parts.push(`${body.duplicates_removed} duplicate${body.duplicates_removed !== 1 ? "s" : ""} cleaned up`);
+        setSuccess(`Assignment complete: ${parts.join(", ")}`);
         fetchSessions();
       }
     } catch { setError("Assignment request failed."); }

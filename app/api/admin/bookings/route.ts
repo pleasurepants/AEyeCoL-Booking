@@ -47,15 +47,22 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "confirm") {
-    await supabase.from("bookings").update({ status: "confirmed" }).eq("id", booking_id);
-
-    // Admin manual confirm: delete other pending bookings for this person
+    // Delete any existing confirmed bookings for this person (enforce one-confirmed rule)
     await supabase
       .from("bookings")
       .delete()
       .eq("email", booking.email)
-      .eq("status", "pending")
+      .eq("status", "confirmed")
       .neq("id", booking_id);
+
+    await supabase.from("bookings").update({ status: "confirmed" }).eq("id", booking_id);
+
+    // Delete all pending bookings for this person
+    await supabase
+      .from("bookings")
+      .delete()
+      .eq("email", booking.email)
+      .eq("status", "pending");
 
     await sendConfirmationEmail(
       booking.email,

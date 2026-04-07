@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
     ok: true,
     confirmed: result.confirmed,
     notified_no_spots: result.notified_no_spots,
+    duplicates_removed: result.duplicates_removed,
   });
 }
 
@@ -33,5 +34,6 @@ export async function GET(req: NextRequest) {
     ok: true,
     confirmed: result.confirmed,
     notified_no_spots: result.notified_no_spots,
+    duplicates_removed: result.duplicates_removed,
   });
 }

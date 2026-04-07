@@ -3,7 +3,6 @@ import {
   sendConfirmationEmail,
   sendNoSpotsEmail,
   sendNoSpotsFinalEmail,
-  sendMovedToPreferredEmail,
 } from "./email";
 
 async function confirmedCount(sessionId: string): Promise<number> {
@@ -15,20 +14,27 @@ async function confirmedCount(sessionId: string): Promise<number> {
   return count ?? 0;
 }
 
-async function deleteAllPendingForEmail(email: string): Promise<void> {
+/**
+ * Delete ALL other bookings (pending) for this email, except the one being kept.
+ * This enforces the rule: one confirmed booking per person, no leftover pending.
+ */
+async function deleteOtherBookingsForEmail(
+  keepId: string,
+  email: string
+): Promise<void> {
   await supabase
     .from("bookings")
     .delete()
     .eq("email", email)
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .neq("id", keepId);
 }
 
 /**
  * Immediate assignment after a new submission.
  * Checks preferences in order (1→2→3). First session with room →
- * confirm that booking, send confirmation email.
- * Other pending bookings are KEPT — they enable chain-move logic later.
- * If all full → keep all as pending, send "all full" email.
+ * confirm that booking, DELETE all other pending bookings, send email.
+ * If all full → keep as pending, send "all full" email.
  */
 export async function tryAssignSubmission(
   bookingIds: string[],
@@ -51,6 +57,13 @@ export async function tryAssignSubmission(
         .update({ status: "confirmed" })
         .eq("id", booking.id);
 
+      // Immediately delete all other pending bookings for this person
+      const otherIds = bookingIds.filter((id) => id !== booking.id);
+      if (otherIds.length) {
+        await supabase.from("bookings").delete().in("id", otherIds);
+      }
+      await deleteOtherBookingsForEmail(booking.id, booking.email);
+
       await sendConfirmationEmail(
         booking.email,
         booking.full_name,
@@ -68,24 +81,14 @@ export async function tryAssignSubmission(
 }
 
 /**
- * Chain backfill after a spot opens in a session.
- *
- * 1. CHAIN PHASE: Find anyone confirmed elsewhere who has a pending booking
- *    for this session with a better preference (lower preference_order).
- *    Move the earliest one here, which frees a spot in their old session →
- *    recursively backfill that session.
- *
- * 2. FILL PHASE: Fill remaining spots from pure pending bookings
- *    (people not confirmed anywhere).
+ * After a spot opens in a session, fill it from pending bookings.
+ * Skips anyone already confirmed elsewhere.
+ * On confirm → deletes all their other pending bookings.
  */
 export async function backfillSession(
   sessionId: string,
-  baseUrl: string,
-  visited: Set<string> = new Set()
+  baseUrl: string
 ): Promise<void> {
-  if (visited.has(sessionId)) return;
-  visited.add(sessionId);
-
   const { data: session } = await supabase
     .from("sessions")
     .select("*")
@@ -111,59 +114,26 @@ export async function backfillSession(
     let filled = false;
 
     for (const candidate of candidates) {
-      const { data: theirConfirmed } = await supabase
+      // Skip anyone already confirmed in another session
+      const { count: alreadyConfirmed } = await supabase
         .from("bookings")
-        .select("*, sessions(*)")
+        .select("*", { count: "exact", head: true })
         .eq("email", candidate.email)
-        .eq("status", "confirmed")
-        .maybeSingle();
+        .eq("status", "confirmed");
 
-      if (theirConfirmed) {
-        if (
-          candidate.preference_order != null &&
-          theirConfirmed.preference_order != null &&
-          candidate.preference_order < theirConfirmed.preference_order
-        ) {
-          const oldSessionId = theirConfirmed.session_id;
-          const oldSessionInfo = theirConfirmed.sessions;
-
-          await supabase
-            .from("bookings")
-            .update({ status: "confirmed" })
-            .eq("id", candidate.id);
-
-          await supabase
-            .from("bookings")
-            .delete()
-            .eq("id", theirConfirmed.id);
-
-          await deleteAllPendingForEmail(candidate.email);
-
-          await sendMovedToPreferredEmail(
-            candidate.email,
-            candidate.full_name,
-            candidate.id,
-            oldSessionInfo,
-            session,
-            baseUrl
-          );
-
-          await backfillSession(oldSessionId, baseUrl, visited);
-
-          filled = true;
-          break;
-        }
-        // They prefer their current confirmed session or equal — skip
+      if ((alreadyConfirmed ?? 0) > 0) {
+        // They're already confirmed elsewhere — delete this stale pending
+        await supabase.from("bookings").delete().eq("id", candidate.id);
         continue;
       }
 
-      // Not confirmed anywhere → regular fill
+      // Confirm this candidate
       await supabase
         .from("bookings")
         .update({ status: "confirmed" })
         .eq("id", candidate.id);
 
-      await deleteAllPendingForEmail(candidate.email);
+      await deleteOtherBookingsForEmail(candidate.id, candidate.email);
 
       await sendConfirmationEmail(
         candidate.email,
@@ -182,13 +152,47 @@ export async function backfillSession(
 }
 
 /**
+ * Cleanup: find emails with multiple confirmed bookings.
+ * Keep only the one with the lowest preference_order, delete the rest.
+ * Returns number of duplicate bookings removed.
+ */
+export async function cleanupDuplicateConfirmations(): Promise<number> {
+  const { data: allConfirmed } = await supabase
+    .from("bookings")
+    .select("id, email, preference_order, created_at")
+    .eq("status", "confirmed")
+    .order("preference_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (!allConfirmed?.length) return 0;
+
+  const kept = new Set<string>();
+  const toDelete: string[] = [];
+
+  for (const booking of allConfirmed) {
+    if (kept.has(booking.email)) {
+      toDelete.push(booking.id);
+    } else {
+      kept.add(booking.email);
+    }
+  }
+
+  if (toDelete.length > 0) {
+    await supabase.from("bookings").delete().in("id", toDelete);
+  }
+
+  return toDelete.length;
+}
+
+/**
  * Batch assignment for all upcoming sessions.
- * Uses backfillSession (with chain logic) for each session, then
- * notifies participants whose ALL preferences are now full.
+ * First cleans up duplicates, then fills sessions, then notifies hopeless pending.
  */
 export async function runBatchAssignment(
   baseUrl: string
-): Promise<{ confirmed: number; notified_no_spots: number }> {
+): Promise<{ confirmed: number; notified_no_spots: number; duplicates_removed: number }> {
+  const duplicatesRemoved = await cleanupDuplicateConfirmations();
+
   const { count: beforeCount } = await supabase
     .from("bookings")
     .select("*", { count: "exact", head: true })
@@ -201,9 +205,8 @@ export async function runBatchAssignment(
     .order("date", { ascending: true });
 
   if (sessions?.length) {
-    const visited = new Set<string>();
     for (const session of sessions) {
-      await backfillSession(session.id, baseUrl, visited);
+      await backfillSession(session.id, baseUrl);
     }
   }
 
@@ -260,5 +263,5 @@ export async function runBatchAssignment(
     }
   }
 
-  return { confirmed: totalConfirmed, notified_no_spots: totalNotified };
+  return { confirmed: totalConfirmed, notified_no_spots: totalNotified, duplicates_removed: duplicatesRemoved };
 }
