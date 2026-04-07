@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { tryAssignSubmission } from "@/lib/assign";
-import { sendApplicationReceivedEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -44,11 +43,9 @@ export async function POST(req: NextRequest) {
       ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
       : req.nextUrl.origin;
 
+  // tryAssignSubmission sends confirmation email on success,
+  // or "no spots" email if all preferences are full
   const confirmedId = await tryAssignSubmission(bookingIds, baseUrl);
-
-  if (!confirmedId) {
-    await sendApplicationReceivedEmail(email, full_name);
-  }
 
   return NextResponse.json({
     ok: true,

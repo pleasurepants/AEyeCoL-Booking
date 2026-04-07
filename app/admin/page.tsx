@@ -205,9 +205,12 @@ export default function AdminPage() {
       if (!res.ok) {
         setError("Assignment failed: " + (body?.error ?? "Unknown error"));
       } else {
-        setAssignResult(
-          `Assignment complete: ${body.confirmed_count} booking${body.confirmed_count !== 1 ? "s" : ""} confirmed for ${body.date}`
-        );
+        const parts: string[] = [];
+        parts.push(`${body.confirmed_count} booking${body.confirmed_count !== 1 ? "s" : ""} confirmed`);
+        if (body.notified_count > 0) {
+          parts.push(`${body.notified_count} participant${body.notified_count !== 1 ? "s" : ""} notified (no spots)`);
+        }
+        setAssignResult(`Assignment complete: ${parts.join(", ")}`);
         fetchSessions();
       }
     } catch {
@@ -282,7 +285,7 @@ export default function AdminPage() {
               disabled={assigning}
               className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
             >
-              {assigning ? "Running…" : "Run Assignment"}
+              {assigning ? "Running…" : "Run Assignment Now"}
             </button>
             <button
               onClick={() => setShowForm(!showForm)}

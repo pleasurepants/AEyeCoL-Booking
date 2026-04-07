@@ -1,8 +1,5 @@
 import { supabase } from "./supabase";
-import {
-  sendConfirmationEmail,
-  sendNoSpotsEmail,
-} from "./email";
+import { sendConfirmationEmail, sendNoSpotsEmail } from "./email";
 
 async function confirmedCount(sessionId: string): Promise<number> {
   const { count } = await supabase
@@ -13,9 +10,22 @@ async function confirmedCount(sessionId: string): Promise<number> {
   return count ?? 0;
 }
 
+async function deleteOtherBookings(
+  keepId: string,
+  email: string
+): Promise<void> {
+  await supabase
+    .from("bookings")
+    .delete()
+    .eq("email", email)
+    .eq("status", "pending")
+    .neq("id", keepId);
+}
+
 /**
  * Try to assign a set of bookings from one submission.
- * Checks sessions in preference order; confirms the first with room.
+ * Checks sessions in preference order; confirms the first with availability.
+ * Deletes the other preference bookings for this person.
  * Returns the confirmed booking id, or null if all full.
  */
 export async function tryAssignSubmission(
@@ -41,10 +51,7 @@ export async function tryAssignSubmission(
 
       const otherIds = bookingIds.filter((id) => id !== booking.id);
       if (otherIds.length) {
-        await supabase
-          .from("bookings")
-          .update({ status: "superseded" })
-          .in("id", otherIds);
+        await supabase.from("bookings").delete().in("id", otherIds);
       }
 
       await sendConfirmationEmail(
@@ -65,8 +72,8 @@ export async function tryAssignSubmission(
 
 /**
  * After a confirmed booking is cancelled, try to fill the freed spot.
- * Finds the earliest pending booking for that session, confirms it,
- * and supersedes the new confirmee's other pending bookings.
+ * Finds the earliest pending booking that listed this session as any preference.
+ * Confirms it, deletes their other pending bookings, sends confirmation email.
  */
 export async function backfillSession(
   sessionId: string,
@@ -99,13 +106,7 @@ export async function backfillSession(
     .update({ status: "confirmed" })
     .eq("id", booking.id);
 
-  // Supersede other pending bookings from the same email
-  await supabase
-    .from("bookings")
-    .update({ status: "superseded" })
-    .eq("email", booking.email)
-    .eq("status", "pending")
-    .neq("id", booking.id);
+  await deleteOtherBookings(booking.id, booking.email);
 
   await sendConfirmationEmail(
     booking.email,
@@ -119,19 +120,20 @@ export async function backfillSession(
 }
 
 /**
- * Nightly batch assignment for sessions happening on a given date.
- * Returns the number of bookings confirmed.
+ * Batch assignment for all sessions with available spots on a given date.
+ * Returns { confirmed, notified } counts.
  */
 export async function runBatchAssignment(
   targetDate: string,
   baseUrl: string
-): Promise<number> {
+): Promise<{ confirmed: number; notified: number }> {
   const { data: sessions } = await supabase
     .from("sessions")
     .select("*")
-    .eq("date", targetDate);
+    .gte("date", targetDate)
+    .order("date", { ascending: true });
 
-  if (!sessions?.length) return 0;
+  if (!sessions?.length) return { confirmed: 0, notified: 0 };
 
   let totalConfirmed = 0;
 
@@ -140,7 +142,6 @@ export async function runBatchAssignment(
     let available = session.max_participants - count;
     if (available <= 0) continue;
 
-    // Find pending bookings for this session, earliest first
     const { data: pending } = await supabase
       .from("bookings")
       .select("*")
@@ -153,7 +154,7 @@ export async function runBatchAssignment(
     for (const booking of pending) {
       if (available <= 0) break;
 
-      // Check this person doesn't already have a confirmed booking
+      // Skip if this person already has a confirmed booking
       const { count: alreadyConfirmed } = await supabase
         .from("bookings")
         .select("*", { count: "exact", head: true })
@@ -162,18 +163,23 @@ export async function runBatchAssignment(
 
       if ((alreadyConfirmed ?? 0) > 0) continue;
 
+      // Re-check this booking still exists and is pending (could have been
+      // deleted when a prior iteration confirmed another booking for same email)
+      const { data: stillExists } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("id", booking.id)
+        .eq("status", "pending")
+        .single();
+
+      if (!stillExists) continue;
+
       await supabase
         .from("bookings")
         .update({ status: "confirmed" })
         .eq("id", booking.id);
 
-      // Supersede their other pending bookings
-      await supabase
-        .from("bookings")
-        .update({ status: "superseded" })
-        .eq("email", booking.email)
-        .eq("status", "pending")
-        .neq("id", booking.id);
+      await deleteOtherBookings(booking.id, booking.email);
 
       await sendConfirmationEmail(
         booking.email,
@@ -189,33 +195,31 @@ export async function runBatchAssignment(
   }
 
   // Find remaining pending bookings where ALL their sessions are full
-  const { data: stillPending } = await supabase
+  let totalNotified = 0;
+  const { data: allPending } = await supabase
     .from("bookings")
-    .select("*, sessions(*)")
-    .eq("status", "pending")
-    .in(
-      "session_id",
-      sessions.map((s) => s.id)
-    );
+    .select("id, email, full_name, session_id")
+    .eq("status", "pending");
 
-  if (stillPending?.length) {
+  if (allPending?.length) {
     const emailsSeen = new Set<string>();
 
-    for (const booking of stillPending) {
+    for (const booking of allPending) {
       if (emailsSeen.has(booking.email)) continue;
 
-      // Check if this person has any pending booking for a session that still has room
-      const { data: allPending } = await supabase
+      // Get all pending bookings for this person
+      const { data: personPending } = await supabase
         .from("bookings")
         .select("session_id, sessions(max_participants)")
         .eq("email", booking.email)
         .eq("status", "pending");
 
       let allFull = true;
-      for (const pb of allPending ?? []) {
+      for (const pb of personPending ?? []) {
         const c = await confirmedCount(pb.session_id);
-        const max = (pb as unknown as { sessions: { max_participants: number } })
-          .sessions.max_participants;
+        const max = (
+          pb as unknown as { sessions: { max_participants: number } }
+        ).sessions.max_participants;
         if (c < max) {
           allFull = false;
           break;
@@ -225,9 +229,10 @@ export async function runBatchAssignment(
       if (allFull) {
         await sendNoSpotsEmail(booking.email, booking.full_name);
         emailsSeen.add(booking.email);
+        totalNotified++;
       }
     }
   }
 
-  return totalConfirmed;
+  return { confirmed: totalConfirmed, notified: totalNotified };
 }

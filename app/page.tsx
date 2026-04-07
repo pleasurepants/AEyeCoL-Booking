@@ -45,6 +45,10 @@ function formatTime(timeStr: string) {
   return `${h}:${m}`;
 }
 
+function isFull(session: Session) {
+  return session.confirmed_count >= session.max_participants;
+}
+
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +64,6 @@ export default function Home() {
   const fetchSessions = useCallback(async () => {
     const today = new Date().toISOString().split("T")[0];
 
-    // Fetch sessions
     const { data: sessionData, error: fetchError } = await supabase
       .from("sessions")
       .select("id, date, start_time, end_time, location, room, max_participants, notes")
@@ -75,7 +78,6 @@ export default function Home() {
       return;
     }
 
-    // Fetch confirmed booking counts per session
     const { data: countData } = await supabase
       .from("bookings")
       .select("session_id")
@@ -86,11 +88,12 @@ export default function Home() {
       counts[row.session_id] = (counts[row.session_id] ?? 0) + 1;
     }
 
-    const available = (sessionData ?? [])
-      .map((s) => ({ ...s, confirmed_count: counts[s.id] ?? 0 }))
-      .filter((s) => s.confirmed_count < s.max_participants);
+    const withCounts = (sessionData ?? []).map((s) => ({
+      ...s,
+      confirmed_count: counts[s.id] ?? 0,
+    }));
 
-    setSessions(available);
+    setSessions(withCounts);
     setLoading(false);
   }, []);
 
@@ -104,6 +107,7 @@ export default function Home() {
   }
 
   function handleFirstChoice(session: Session) {
+    if (isFull(session)) return;
     setFirstChoice(session);
     setBackup1(null);
     setBackup2(null);
@@ -208,7 +212,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Step indicator */}
         <div className="mb-8 flex items-center gap-2 text-xs font-medium text-gray-400">
           <span className={step === "info" ? "text-blue-600" : "text-gray-600"}>
             1. Your Info
@@ -223,7 +226,6 @@ export default function Home() {
           </span>
         </div>
 
-        {/* Step 1: Personal info */}
         {step === "info" && (
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-1 text-lg font-semibold text-gray-900">Your Information</h2>
@@ -235,77 +237,50 @@ export default function Home() {
                 <label htmlFor="full_name" className="mb-1 block text-sm font-medium text-gray-700">
                   Full Name <span className="text-red-400">*</span>
                 </label>
-                <input
-                  id="full_name"
-                  type="text"
-                  required
-                  value={info.full_name}
+                <input id="full_name" type="text" required value={info.full_name}
                   onChange={(e) => setInfo({ ...info, full_name: e.target.value })}
-                  className={inputClass}
-                  placeholder="Enter your full name"
-                />
+                  className={inputClass} placeholder="Enter your full name" />
               </div>
               <div>
                 <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
                   Email <span className="text-red-400">*</span>
                 </label>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={info.email}
+                <input id="email" type="email" required value={info.email}
                   onChange={(e) => setInfo({ ...info, email: e.target.value })}
-                  className={inputClass}
-                  placeholder="example@university.edu"
-                />
+                  className={inputClass} placeholder="example@university.edu" />
               </div>
               <div>
                 <label htmlFor="phone" className="mb-1 block text-sm font-medium text-gray-700">
                   Phone <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  value={info.phone}
+                <input id="phone" type="tel" value={info.phone}
                   onChange={(e) => setInfo({ ...info, phone: e.target.value })}
-                  className={inputClass}
-                  placeholder="Enter your phone number"
-                />
+                  className={inputClass} placeholder="Enter your phone number" />
               </div>
               <div>
                 <label htmlFor="comments" className="mb-1 block text-sm font-medium text-gray-700">
                   Comments <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
-                <textarea
-                  id="comments"
-                  rows={3}
-                  value={info.comments}
+                <textarea id="comments" rows={3} value={info.comments}
                   onChange={(e) => setInfo({ ...info, comments: e.target.value })}
-                  className={inputClass}
-                  placeholder="Any special requirements or notes"
-                />
+                  className={inputClass} placeholder="Any special requirements or notes" />
               </div>
-              <button
-                type="submit"
-                className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
-              >
+              <button type="submit"
+                className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700">
                 Continue
               </button>
             </form>
           </div>
         )}
 
-        {/* Step 2: First choice */}
         {step === "first" && (
           <>
             <div className="mb-1 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Select Your First Choice</h2>
-              <button onClick={() => setStep("info")} className="text-sm text-blue-600 hover:underline">
-                ← Back
-              </button>
+              <button onClick={() => setStep("info")} className="text-sm text-blue-600 hover:underline">← Back</button>
             </div>
             <p className="mb-5 text-sm text-gray-500">
-              Choose the session you would most like to attend.
+              Choose the session you would most like to attend. Sessions marked &quot;Full&quot; can only be selected as a backup.
             </p>
 
             {loading ? (
@@ -317,30 +292,30 @@ export default function Home() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 {sessions.map((s) => (
-                  <SessionCard key={s.id} session={s} onClick={() => handleFirstChoice(s)} />
+                  <SessionCard
+                    key={s.id}
+                    session={s}
+                    onClick={() => handleFirstChoice(s)}
+                    disabled={isFull(s)}
+                  />
                 ))}
               </div>
             )}
           </>
         )}
 
-        {/* Step 3: Backup choices */}
         {step === "backups" && firstChoice && (
           <>
             <div className="mb-1 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Select Backup Sessions</h2>
               <button
                 onClick={() => { setFirstChoice(null); setBackup1(null); setBackup2(null); setStep("first"); }}
-                className="text-sm text-blue-600 hover:underline"
-              >
-                ← Back
-              </button>
+                className="text-sm text-blue-600 hover:underline">← Back</button>
             </div>
             <p className="mb-5 text-sm text-gray-500">
               Optionally choose up to 2 backup sessions in case your first choice is full. You can also skip and submit now.
             </p>
 
-            {/* Summary of first choice */}
             <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
               <div className="text-xs font-medium text-blue-600">First Choice</div>
               <div className="text-sm font-semibold text-gray-900">{formatDate(firstChoice.date)}</div>
@@ -350,7 +325,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Available sessions for backup */}
             <div className="grid gap-4 sm:grid-cols-2">
               {sessions
                 .filter((s) => s.id !== firstChoice.id)
@@ -368,13 +342,11 @@ export default function Home() {
                 })}
             </div>
 
-            {/* Submit */}
             <div className="mt-6 flex gap-3">
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
-              >
+                className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50">
                 {submitting ? "Submitting…" : "Submit Application"}
               </button>
               {!backup1 && (
@@ -395,20 +367,27 @@ function SessionCard({
   onClick,
   selected,
   badge,
+  disabled,
 }: {
   session: Session;
   onClick: () => void;
   selected?: boolean;
   badge?: string | null;
+  disabled?: boolean;
 }) {
+  const full = isFull(session);
   const spots = session.max_participants - session.confirmed_count;
+
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`rounded-xl border p-5 text-left transition ${
         selected
           ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-          : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
+          : disabled
+            ? "cursor-not-allowed border-gray-200 bg-gray-50 opacity-70"
+            : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
       }`}
     >
       <div className="mb-1 text-sm font-semibold text-gray-900">
@@ -419,15 +398,21 @@ function SessionCard({
         {session.room && `, ${session.room}`}
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <span
-          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-            spots <= 2
-              ? "bg-amber-100 text-amber-700"
-              : "bg-emerald-100 text-emerald-700"
-          }`}
-        >
-          {spots} spot{spots !== 1 ? "s" : ""} remaining
-        </span>
+        {full ? (
+          <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
+            Full
+          </span>
+        ) : (
+          <span
+            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              spots <= 2
+                ? "bg-amber-100 text-amber-700"
+                : "bg-emerald-100 text-emerald-700"
+            }`}
+          >
+            {spots} spot{spots !== 1 ? "s" : ""} remaining
+          </span>
+        )}
         {badge && (
           <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
             {badge}
@@ -435,9 +420,7 @@ function SessionCard({
         )}
       </div>
       {session.notes && (
-        <p className="mt-2 text-xs leading-relaxed text-gray-400">
-          {session.notes}
-        </p>
+        <p className="mt-2 text-xs leading-relaxed text-gray-400">{session.notes}</p>
       )}
     </button>
   );

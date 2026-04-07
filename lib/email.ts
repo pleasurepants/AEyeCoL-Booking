@@ -107,7 +107,8 @@ export async function sendNoSpotsEmail(email: string, fullName: string) {
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; color: #1f2937;">
         <h2 style="color: #111827; margin-bottom: 4px;">Availability Update</h2>
         <p style="color: #6b7280; margin-top: 0;">Hi ${fullName},</p>
-        <p style="color: #374151; line-height: 1.6;">We received your application but all your selected sessions are currently full. We will notify you if a spot opens up.</p>
+        <p style="color: #374151; line-height: 1.6;">We received your application but all your selected sessions are currently full.</p>
+        <p style="color: #374151; line-height: 1.6;">Please visit our booking page to re-register for a different session if you would like to participate.</p>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
