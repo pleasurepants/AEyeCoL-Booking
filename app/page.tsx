@@ -89,13 +89,17 @@ export default function Home() {
     setSubmitting(true);
     setError(null);
 
-    const { error: insertError } = await supabase.from("bookings").insert({
-      session_id: selectedSession.id,
-      full_name: form.full_name,
-      email: form.email,
-      phone: form.phone || null,
-      comments: form.comments || null,
-    });
+    const { data: insertData, error: insertError } = await supabase
+      .from("bookings")
+      .insert({
+        session_id: selectedSession.id,
+        full_name: form.full_name,
+        email: form.email,
+        phone: form.phone || null,
+        comments: form.comments || null,
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       console.error("Booking insert error:", insertError);
@@ -103,6 +107,17 @@ export default function Home() {
       setSubmitting(false);
       return;
     }
+
+    fetch("/api/bookings/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        booking_id: insertData.id,
+        email: form.email,
+        full_name: form.full_name,
+        session: selectedSession,
+      }),
+    }).catch(console.error);
 
     setBooked(selectedSession);
     setSelectedSession(null);

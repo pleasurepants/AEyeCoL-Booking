@@ -32,14 +32,28 @@ interface SessionForm {
   notes: string;
 }
 
-const emptySessionForm: SessionForm = {
-  date: "",
-  start_time: "",
-  end_time: "",
-  location: "",
-  max_participants: 10,
-  notes: "",
-};
+function getDefaultSessionForm(): SessionForm {
+  const now = new Date();
+  const mins = now.getMinutes();
+  const roundedMins = mins < 15 ? 0 : mins < 45 ? 30 : 60;
+  const start = new Date(now);
+  start.setMinutes(roundedMins, 0, 0);
+  if (roundedMins === 60) start.setHours(start.getHours());
+
+  const end = new Date(start.getTime() + 90 * 60 * 1000);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const toTimeStr = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  return {
+    date: "",
+    start_time: toTimeStr(start),
+    end_time: toTimeStr(end),
+    location: "",
+    max_participants: 4,
+    notes: "",
+  };
+}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
@@ -73,7 +87,7 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<SessionForm>(emptySessionForm);
+  const [form, setForm] = useState<SessionForm>(getDefaultSessionForm);
   const [submitting, setSubmitting] = useState(false);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -147,7 +161,7 @@ export default function AdminPage() {
       return;
     }
 
-    setForm(emptySessionForm);
+    setForm(getDefaultSessionForm());
     setShowForm(false);
     setSubmitting(false);
     fetchSessions();
@@ -275,9 +289,14 @@ export default function AdminPage() {
                   type="time"
                   required
                   value={form.start_time}
-                  onChange={(e) =>
-                    setForm({ ...form, start_time: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const st = e.target.value;
+                    const [h, m] = st.split(":").map(Number);
+                    const endDate = new Date(2000, 0, 1, h, m + 90);
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    const et = `${pad(endDate.getHours())}:${pad(endDate.getMinutes())}`;
+                    setForm({ ...form, start_time: st, end_time: et });
+                  }}
                   className={inputClass}
                 />
               </div>
