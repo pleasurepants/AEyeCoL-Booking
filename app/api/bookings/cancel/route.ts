@@ -9,7 +9,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing booking_id" }, { status: 400 });
   }
 
-  // Fetch booking to know which session to backfill
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
     .select("id, session_id, status")
@@ -20,10 +19,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
 
-  const wasConfirmed = booking.status === "confirmed";
   const sessionId = booking.session_id;
 
-  // Delete the booking
   const { error: deleteError } = await supabase
     .from("bookings")
     .delete()
@@ -33,15 +30,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
-  // If the cancelled booking was confirmed, try to backfill
-  if (wasConfirmed) {
-    const baseUrl =
-      req.headers.get("x-forwarded-proto") && req.headers.get("host")
-        ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
-        : req.nextUrl.origin;
+  // Always try to backfill — if a confirmed spot freed up, fill it
+  const baseUrl =
+    req.headers.get("x-forwarded-proto") && req.headers.get("host")
+      ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
+      : req.nextUrl.origin;
 
-    await backfillSession(sessionId, baseUrl);
-  }
+  await backfillSession(sessionId, baseUrl);
 
   return NextResponse.json({ ok: true });
 }

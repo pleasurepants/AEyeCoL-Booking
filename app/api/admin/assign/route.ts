@@ -7,20 +7,14 @@ function getBaseUrl(req: NextRequest) {
     : req.nextUrl.origin;
 }
 
-function getTodayStr() {
-  return new Date().toISOString().split("T")[0];
-}
-
 export async function POST(req: NextRequest) {
   const baseUrl = getBaseUrl(req);
-  const targetDate = req.nextUrl.searchParams.get("date") ?? getTodayStr();
-  const result = await runBatchAssignment(targetDate, baseUrl);
+  const result = await runBatchAssignment(baseUrl);
 
   return NextResponse.json({
     ok: true,
-    confirmed_count: result.confirmed,
-    notified_count: result.notified,
-    date: targetDate,
+    confirmed: result.confirmed,
+    notified_no_spots: result.notified_no_spots,
   });
 }
 
@@ -33,13 +27,11 @@ export async function GET(req: NextRequest) {
   }
 
   const baseUrl = getBaseUrl(req);
-  const targetDate = getTodayStr();
-  const result = await runBatchAssignment(targetDate, baseUrl);
+  const result = await runBatchAssignment(baseUrl);
 
   return NextResponse.json({
     ok: true,
-    confirmed_count: result.confirmed,
-    notified_count: result.notified,
-    date: targetDate,
+    confirmed: result.confirmed,
+    notified_no_spots: result.notified_no_spots,
   });
 }

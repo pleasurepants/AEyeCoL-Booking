@@ -224,9 +224,9 @@ export default function AdminPage() {
       const body = await res.json();
       if (!res.ok) { setError("Assignment failed: " + (body?.error ?? "Unknown")); }
       else {
-        const parts: string[] = [`${body.confirmed_count} confirmed`];
-        if (body.notified_count > 0) parts.push(`${body.notified_count} notified (no spots)`);
-        setSuccess(`Assignment complete: ${parts.join(", ")}`);
+        setSuccess(
+          `Confirmed ${body.confirmed} participant${body.confirmed !== 1 ? "s" : ""}, notified ${body.notified_no_spots} of no available spots`
+        );
         fetchSessions();
       }
     } catch { setError("Assignment request failed."); }
