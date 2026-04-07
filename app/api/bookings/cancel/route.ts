@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
-    .select("id, session_id, status, email, full_name, sessions(*)")
+    .select("id, session_id, status, email, full_name, sessions(date, start_time, end_time, location, room)")
     .eq("id", booking_id)
     .single();
 
@@ -22,6 +22,13 @@ export async function POST(req: NextRequest) {
 
   const sessionId = booking.session_id;
   const wasConfirmed = booking.status === "confirmed";
+  const sessionInfo = booking.sessions as unknown as {
+    date: string;
+    start_time: string;
+    end_time: string;
+    location: string;
+    room: string | null;
+  };
 
   // Also delete any other pending bookings from same email
   // (their other preferences are no longer valid after self-cancellation)
@@ -46,7 +53,7 @@ export async function POST(req: NextRequest) {
     await sendCancellationConfirmationEmail(
       booking.email,
       booking.full_name,
-      booking.sessions
+      sessionInfo
     );
   }
 
