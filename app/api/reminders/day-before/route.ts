@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabase } from "@/lib/supabase";
+import { localTomorrowStr } from "@/lib/timezone";
 
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
@@ -19,11 +20,7 @@ export async function POST() {
     return NextResponse.json({ error: "Email not configured" }, { status: 500 });
   }
 
-  const tz = process.env.TIMEZONE || "UTC";
-  const nowStr = new Date().toLocaleString("sv-SE", { timeZone: tz });
-  const today = new Date(nowStr.split(" ")[0] + "T00:00:00");
-  today.setDate(today.getDate() + 1);
-  const tomorrowStr = today.toISOString().split("T")[0];
+  const tomorrowStr = localTomorrowStr();
 
   const { data: sessions } = await supabase
     .from("sessions")

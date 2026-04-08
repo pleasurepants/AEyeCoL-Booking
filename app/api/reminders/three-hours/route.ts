@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabase } from "@/lib/supabase";
+import { localNow, localTodayStr } from "@/lib/timezone";
 
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
@@ -19,10 +20,8 @@ export async function POST() {
     return NextResponse.json({ error: "Email not configured" }, { status: 500 });
   }
 
-  const tz = process.env.TIMEZONE || "UTC";
-  const nowStr = new Date().toLocaleString("sv-SE", { timeZone: tz });
-  const now = new Date(nowStr.replace(" ", "T"));
-  const todayStr = nowStr.split(" ")[0];
+  const now = localNow();
+  const todayStr = localTodayStr();
 
   const lo = new Date(now.getTime() + 2 * 60 * 60 * 1000 + 45 * 60 * 1000);
   const hi = new Date(now.getTime() + 3 * 60 * 60 * 1000 + 15 * 60 * 1000);
