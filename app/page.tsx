@@ -222,11 +222,19 @@ export default function Home() {
     "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
   if (step === "submitted") {
+    const isBackupConfirm =
+      wasConfirmed &&
+      confirmedSession &&
+      firstChoice &&
+      (confirmedSession.date !== firstChoice.date ||
+        confirmedSession.start_time !== firstChoice.start_time);
+
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
         <main className="mx-auto max-w-2xl px-4 py-12">
-          {wasConfirmed ? (
+          {wasConfirmed && !isBackupConfirm ? (
+            /* ── Green: confirmed into first choice ── */
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-8 text-center">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
                 <svg className="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -256,7 +264,40 @@ export default function Home() {
                 <p>• If you need to cancel, use the link in your confirmation email.</p>
               </div>
             </div>
+          ) : wasConfirmed && isBackupConfirm ? (
+            /* ── Blue: first choice full, confirmed into backup ── */
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-8 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-100">
+                <svg className="h-7 w-7 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <h2 className="mb-2 text-xl font-semibold text-blue-900">Confirmed — Backup Session</h2>
+              <p className="text-blue-700">
+                Your first choice was full. You have been confirmed for the following backup session:
+              </p>
+
+              {confirmedSession && (
+                <div className="mx-auto mt-6 max-w-xs rounded-lg border border-blue-200 bg-white p-4 text-left">
+                  <div className="text-sm font-semibold text-gray-900">{formatDate(confirmedSession.date)}</div>
+                  <div className="mt-1 text-sm text-gray-600">
+                    {formatTime(confirmedSession.start_time)} – {formatTime(confirmedSession.end_time)}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-600">
+                    {confirmedSession.location}
+                    {confirmedSession.room && `, ${confirmedSession.room}`}
+                  </div>
+                </div>
+              )}
+
+              <div className="mx-auto mt-6 max-w-sm text-left text-sm text-blue-800 space-y-2">
+                <p>• If a spot opens up in your first choice, you will be <strong>automatically upgraded</strong> and notified by email.</p>
+                <p>• You will receive a reminder email <strong>1 day before</strong> and <strong>3 hours before</strong> your session.</p>
+                <p>• If you need to cancel, use the link in your confirmation email.</p>
+              </div>
+            </div>
           ) : (
+            /* ── Amber: waitlist ── */
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
                 <svg className="h-7 w-7 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
