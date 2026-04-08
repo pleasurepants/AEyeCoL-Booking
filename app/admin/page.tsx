@@ -97,6 +97,7 @@ export default function AdminPage() {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [deletingBookingId, setDeletingBookingId] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [settingUpReminders, setSettingUpReminders] = useState(false);
   const [search, setSearch] = useState("");
 
   // Email modal
@@ -270,6 +271,28 @@ export default function AdminPage() {
     URL.revokeObjectURL(url);
   }
 
+  /* ─── setup reminder schedules ─── */
+  async function handleSetupReminders() {
+    setSettingUpReminders(true);
+    setError(null); setSuccess(null);
+    try {
+      const res = await fetch("/api/reminders/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError("Reminder setup failed: " + (body.error || JSON.stringify(body.schedules)));
+      } else {
+        setSuccess("Reminder schedules created successfully (day-before + 3-hour)");
+      }
+    } catch {
+      setError("Failed to setup reminders");
+    }
+    setSettingUpReminders(false);
+  }
+
   /* ─── preference display ─── */
   function prefSummary(email: string, currentSessionId: string): string {
     const prefs = prefMap[email];
@@ -326,6 +349,9 @@ export default function AdminPage() {
           <button onClick={handleExportCSV} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Export CSV</button>
           <button onClick={handleRunAssignment} disabled={assigning} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
             {assigning ? "Running…" : "Run Assignment Now"}
+          </button>
+          <button onClick={handleSetupReminders} disabled={settingUpReminders} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {settingUpReminders ? "Setting up…" : "Setup Reminder Schedules"}
           </button>
           <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
             {showForm ? "Cancel" : "Add Session"}
