@@ -13,7 +13,15 @@ function locStr(location: string, room: string | null) {
   return room ? `${location}, ${room}` : location;
 }
 
+export async function GET() {
+  return handleReminder();
+}
+
 export async function POST() {
+  return handleReminder();
+}
+
+async function handleReminder() {
   const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
   const sender = process.env.FROM_EMAIL;
   if (!resend || !sender) {

@@ -226,47 +226,67 @@ export default function Home() {
       <div className="min-h-screen bg-gray-50">
         <Header />
         <main className="mx-auto max-w-2xl px-4 py-12">
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-8 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-100">
-              <svg className="h-7 w-7 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
+          {wasConfirmed ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-8 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+                <svg className="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <h2 className="mb-2 text-xl font-semibold text-emerald-900">Session Confirmed</h2>
+              <p className="text-emerald-700">
+                You have been confirmed for the following session:
+              </p>
+
+              {confirmedSession && (
+                <div className="mx-auto mt-6 max-w-xs rounded-lg border border-emerald-200 bg-white p-4 text-left">
+                  <div className="text-sm font-semibold text-gray-900">{formatDate(confirmedSession.date)}</div>
+                  <div className="mt-1 text-sm text-gray-600">
+                    {formatTime(confirmedSession.start_time)} – {formatTime(confirmedSession.end_time)}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-600">
+                    {confirmedSession.location}
+                    {confirmedSession.room && `, ${confirmedSession.room}`}
+                  </div>
+                </div>
+              )}
+
+              <div className="mx-auto mt-6 max-w-sm text-left text-sm text-emerald-800 space-y-2">
+                <p>• You will receive a reminder email <strong>1 day before</strong> and <strong>3 hours before</strong> your session.</p>
+                <p>• If you need to cancel, use the link in your confirmation email.</p>
+              </div>
             </div>
-            <h2 className="mb-2 text-xl font-semibold text-blue-900">
-              {wasConfirmed ? "Session Confirmed" : "Registration Received"}
-            </h2>
-            <p className="text-blue-700">
-              {wasConfirmed
-                ? "You have been confirmed for the following session:"
-                : "We have received your registration. You are on the waitlist and will be notified once a spot opens up."}
-            </p>
-
-            {wasConfirmed && confirmedSession && (
-              <div className="mx-auto mt-6 max-w-xs rounded-lg border border-blue-200 bg-white p-4 text-left">
-                <div className="text-sm font-semibold text-gray-900">{formatDate(confirmedSession.date)}</div>
-                <div className="mt-1 text-sm text-gray-600">
-                  {formatTime(confirmedSession.start_time)} – {formatTime(confirmedSession.end_time)}
-                </div>
-                <div className="mt-1 text-sm text-gray-600">
-                  {confirmedSession.location}
-                  {confirmedSession.room && `, ${confirmedSession.room}`}
-                </div>
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+                <svg className="h-7 w-7 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
               </div>
-            )}
+              <h2 className="mb-2 text-xl font-semibold text-amber-900">On the Waitlist</h2>
+              <p className="text-amber-700">
+                Your selected sessions are currently full. You have been placed on the waitlist.
+              </p>
 
-            {!wasConfirmed && firstChoice && (
-              <div className="mx-auto mt-6 max-w-xs rounded-lg border border-blue-200 bg-white p-4 text-left">
-                <div className="mb-1 text-xs font-medium text-blue-600">Your selections</div>
-                <div className="text-sm text-gray-900">{formatDate(firstChoice.date)} — {formatTime(firstChoice.start_time)}</div>
-                {backup1 && (
-                  <div className="mt-1 text-sm text-gray-500">Backup: {formatDate(backup1.date)} — {formatTime(backup1.start_time)}</div>
-                )}
-                {backup2 && (
-                  <div className="mt-1 text-sm text-gray-500">Backup: {formatDate(backup2.date)} — {formatTime(backup2.start_time)}</div>
-                )}
+              {firstChoice && (
+                <div className="mx-auto mt-6 max-w-xs rounded-lg border border-amber-200 bg-white p-4 text-left">
+                  <div className="mb-1 text-xs font-medium text-amber-600">Your selections</div>
+                  <div className="text-sm text-gray-900">{formatDate(firstChoice.date)} — {formatTime(firstChoice.start_time)}</div>
+                  {backup1 && (
+                    <div className="mt-1 text-sm text-gray-500">Backup: {formatDate(backup1.date)} — {formatTime(backup1.start_time)}</div>
+                  )}
+                  {backup2 && (
+                    <div className="mt-1 text-sm text-gray-500">Backup: {formatDate(backup2.date)} — {formatTime(backup2.start_time)}</div>
+                  )}
+                </div>
+              )}
+
+              <div className="mx-auto mt-6 max-w-sm text-left text-sm text-amber-800 space-y-2">
+                <p>• If a spot opens up in any of your preferred sessions, you will be <strong>automatically confirmed</strong> and notified by email.</p>
+                <p>• No action is needed from you — just keep an eye on your inbox.</p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </main>
       </div>
     );
@@ -491,17 +511,15 @@ function SessionCard({
       </div>
       <div className="mt-2 flex items-center gap-2">
         {full ? (
-          <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+          <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
             Full — Waitlist Available
           </span>
+        ) : session.confirmed_count === 0 ? (
+          <span className="inline-block rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+            {spots} spot{spots !== 1 ? "s" : ""} remaining
+          </span>
         ) : (
-          <span
-            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              spots <= 2
-                ? "bg-amber-100 text-amber-700"
-                : "bg-emerald-100 text-emerald-700"
-            }`}
-          >
+          <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
             {spots} spot{spots !== 1 ? "s" : ""} remaining
           </span>
         )}
