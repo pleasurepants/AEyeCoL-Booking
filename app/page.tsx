@@ -117,11 +117,14 @@ export default function Home() {
       glassesCounts[row.session_id] = (glassesCounts[row.session_id] ?? 0) + 1;
     }
 
-    const withCounts = (sessionData ?? []).map((s) => ({
-      ...s,
-      confirmed_count: counts[s.id] ?? 0,
-      glasses_count: glassesCounts[s.id] ?? 0,
-    }));
+    const now = new Date();
+    const withCounts = (sessionData ?? [])
+      .filter((s) => new Date(`${s.date}T${s.start_time}`) > now)
+      .map((s) => ({
+        ...s,
+        confirmed_count: counts[s.id] ?? 0,
+        glasses_count: glassesCounts[s.id] ?? 0,
+      }));
 
     setSessions(withCounts);
     setLoading(false);
