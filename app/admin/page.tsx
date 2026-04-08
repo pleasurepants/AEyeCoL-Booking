@@ -12,6 +12,7 @@ interface Booking {
   email: string;
   phone: string | null;
   comments: string | null;
+  glasses: string | null;
   preference_order: number | null;
   status: string | null;
   created_at: string;
@@ -231,14 +232,14 @@ export default function AdminPage() {
 
   /* ─── CSV export ─── */
   function handleExportCSV() {
-    const rows: string[][] = [["Name", "Email", "Phone", "Session Date", "Start Time", "End Time", "Location", "Room", "Comments", "Booked At"]];
+    const rows: string[][] = [["Name", "Email", "Phone", "Glasses", "Session Date", "Start Time", "End Time", "Location", "Room", "Status", "Comments", "Booked At"]];
     for (const s of sessions) {
       for (const b of s.bookings) {
         if (b.status !== "confirmed") continue;
         rows.push([
-          b.full_name, b.email, b.phone || "", s.date,
+          b.full_name, b.email, b.phone || "", b.glasses || "none", s.date,
           formatTime(s.start_time), formatTime(s.end_time),
-          s.location, s.room || "", b.comments || "", b.created_at,
+          s.location, s.room || "", b.status || "", b.comments || "", b.created_at,
         ]);
       }
     }
@@ -419,14 +420,15 @@ export default function AdminPage() {
                         <thead>
                           <tr className="border-b border-gray-100 text-xs text-gray-500">
                             <th className="px-4 py-2.5 font-medium">Name</th>
+                            <th className="px-4 py-2.5 font-medium">Status</th>
+                            <th className="px-4 py-2.5 font-medium">Actions</th>
+                            <th className="px-4 py-2.5 font-medium">Glasses</th>
                             <th className="px-4 py-2.5 font-medium">Email</th>
                             <th className="px-4 py-2.5 font-medium">Phone</th>
                             <th className="px-4 py-2.5 font-medium">Pref</th>
                             <th className="px-4 py-2.5 font-medium">Other Prefs</th>
-                            <th className="px-4 py-2.5 font-medium">Status</th>
                             <th className="px-4 py-2.5 font-medium">Comments</th>
                             <th className="px-4 py-2.5 font-medium">Booked At</th>
-                            <th className="px-4 py-2.5 font-medium">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -436,17 +438,6 @@ export default function AdminPage() {
                             return (
                               <tr key={b.id} className="border-b border-gray-50 last:border-0">
                                 <td className="whitespace-nowrap px-4 py-2.5 font-medium text-gray-900">{b.full_name}</td>
-                                <td className="whitespace-nowrap px-4 py-2.5 text-gray-600">{b.email}</td>
-                                <td className="whitespace-nowrap px-4 py-2.5 text-gray-600">{b.phone || "—"}</td>
-                                <td className="whitespace-nowrap px-4 py-2.5">
-                                  {b.preference_order === 1 ? <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">1st</span>
-                                    : b.preference_order === 2 ? <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">2nd</span>
-                                    : b.preference_order === 3 ? <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">3rd</span>
-                                    : "—"}
-                                </td>
-                                <td className="max-w-[180px] truncate px-4 py-2.5 text-xs text-gray-400" title={otherPrefs || undefined}>
-                                  {otherPrefs || "—"}
-                                </td>
                                 <td className="whitespace-nowrap px-4 py-2.5">
                                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                                     b.status === "confirmed" ? "bg-green-100 text-green-700"
@@ -454,11 +445,8 @@ export default function AdminPage() {
                                     : "bg-gray-100 text-gray-600"
                                   }`}>{b.status || "—"}</span>
                                 </td>
-                                <td className="max-w-[150px] truncate px-4 py-2.5 text-gray-500" title={b.comments || undefined}>{b.comments || "—"}</td>
-                                <td className="whitespace-nowrap px-4 py-2.5 text-gray-400">{formatDateTime(b.created_at)}</td>
                                 <td className="whitespace-nowrap px-4 py-2.5">
                                   <div className="flex items-center gap-1">
-                                    {/* Confirm / Set Pending */}
                                     {b.status === "pending" && (
                                       <button disabled={isBusy} onClick={() => handleBookingAction("confirm", b.id)}
                                         className="rounded bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50">Confirm</button>
@@ -467,7 +455,6 @@ export default function AdminPage() {
                                       <button disabled={isBusy} onClick={() => handleBookingAction("set-pending", b.id)}
                                         className="rounded bg-amber-500 px-2 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50">Pending</button>
                                     )}
-                                    {/* Move */}
                                     <select
                                       disabled={isBusy}
                                       value=""
@@ -479,10 +466,8 @@ export default function AdminPage() {
                                         <option key={s.id} value={s.id}>{shortDate(s.date)} {formatTime(s.start_time)}</option>
                                       ))}
                                     </select>
-                                    {/* Email */}
                                     <button onClick={() => { setEmailTarget(b); setEmailSubject(""); setEmailMessage(""); }}
                                       className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200">Email</button>
-                                    {/* Delete */}
                                     {deletingBookingId === b.id ? (
                                       <div className="flex items-center gap-1">
                                         <button onClick={() => handleBookingAction("delete", b.id)} disabled={isBusy}
@@ -496,6 +481,28 @@ export default function AdminPage() {
                                     )}
                                   </div>
                                 </td>
+                                <td className="whitespace-nowrap px-4 py-2.5">
+                                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                    b.glasses === "glasses" ? "bg-purple-100 text-purple-700"
+                                    : b.glasses === "contacts" ? "bg-sky-100 text-sky-700"
+                                    : "bg-gray-100 text-gray-600"
+                                  }`}>
+                                    {b.glasses === "glasses" ? "Glasses" : b.glasses === "contacts" ? "Contacts" : "None"}
+                                  </span>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-2.5 text-gray-600">{b.email}</td>
+                                <td className="whitespace-nowrap px-4 py-2.5 text-gray-600">{b.phone || "—"}</td>
+                                <td className="whitespace-nowrap px-4 py-2.5">
+                                  {b.preference_order === 1 ? <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">1st</span>
+                                    : b.preference_order === 2 ? <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">2nd</span>
+                                    : b.preference_order === 3 ? <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">3rd</span>
+                                    : "—"}
+                                </td>
+                                <td className="max-w-[180px] truncate px-4 py-2.5 text-xs text-gray-400" title={otherPrefs || undefined}>
+                                  {otherPrefs || "—"}
+                                </td>
+                                <td className="max-w-[150px] truncate px-4 py-2.5 text-gray-500" title={b.comments || undefined}>{b.comments || "—"}</td>
+                                <td className="whitespace-nowrap px-4 py-2.5 text-gray-400">{formatDateTime(b.created_at)}</td>
                               </tr>
                             );
                           })}
