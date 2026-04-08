@@ -275,11 +275,13 @@ export default function AdminPage() {
   async function handleSetupReminders() {
     setSettingUpReminders(true);
     setError(null); setSuccess(null);
+    const pw = prompt("Enter admin password:");
+    if (!pw) { setSettingUpReminders(false); return; }
     try {
       const res = await fetch("/api/reminders/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: pw }),
       });
       const body = await res.json();
       if (!res.ok) {
