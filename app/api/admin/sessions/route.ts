@@ -46,6 +46,16 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Missing session id" }, { status: 400 });
   }
 
+  // Delete all bookings for this session first (foreign key constraint)
+  const { error: bookingsError } = await supabase
+    .from("bookings")
+    .delete()
+    .eq("session_id", id);
+
+  if (bookingsError) {
+    return NextResponse.json({ error: bookingsError.message }, { status: 500 });
+  }
+
   const { error } = await supabase
     .from("sessions")
     .delete()
