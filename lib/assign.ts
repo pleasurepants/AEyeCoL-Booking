@@ -16,9 +16,16 @@ async function confirmedCount(sessionId: string): Promise<number> {
   return count ?? 0;
 }
 
+function localNow(): Date {
+  const tz = process.env.TIMEZONE || "UTC";
+  const str = new Date().toLocaleString("sv-SE", { timeZone: tz });
+  return new Date(str.replace(" ", "T"));
+}
+
 function startsWithinThreeHours(session: { date: string; start_time: string }): boolean {
+  const now = localNow();
   const start = new Date(`${session.date}T${session.start_time}`);
-  const diffMs = start.getTime() - Date.now();
+  const diffMs = start.getTime() - now.getTime();
   return diffMs > 0 && diffMs <= 3 * 60 * 60 * 1000;
 }
 

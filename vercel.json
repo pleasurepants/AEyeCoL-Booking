@@ -3,6 +3,14 @@
     {
       "path": "/api/admin/assign",
       "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/reminders/day-before",
+      "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/reminders/three-hours",
+      "schedule": "0 * * * *"
     }
   ]
 }

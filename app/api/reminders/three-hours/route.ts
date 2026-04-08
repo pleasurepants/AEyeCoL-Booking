@@ -19,13 +19,16 @@ export async function POST() {
     return NextResponse.json({ error: "Email not configured" }, { status: 500 });
   }
 
-  const now = new Date();
-  const todayStr = now.toISOString().split("T")[0];
+  const tz = process.env.TIMEZONE || "UTC";
+  const nowStr = new Date().toLocaleString("sv-SE", { timeZone: tz });
+  const now = new Date(nowStr.replace(" ", "T"));
+  const todayStr = nowStr.split(" ")[0];
 
-  const lo = new Date(now.getTime() + 2 * 60 * 60 * 1000 + 45 * 60 * 1000); // now + 2h45m
-  const hi = new Date(now.getTime() + 3 * 60 * 60 * 1000 + 15 * 60 * 1000); // now + 3h15m
-  const loTime = lo.toISOString().split("T")[1].substring(0, 8); // HH:MM:SS
-  const hiTime = hi.toISOString().split("T")[1].substring(0, 8);
+  const lo = new Date(now.getTime() + 2 * 60 * 60 * 1000 + 45 * 60 * 1000);
+  const hi = new Date(now.getTime() + 3 * 60 * 60 * 1000 + 15 * 60 * 1000);
+  const pad = (d: Date) => d.toISOString().split("T")[1].substring(0, 8);
+  const loTime = pad(lo);
+  const hiTime = pad(hi);
 
   const { data: sessions } = await supabase
     .from("sessions")
