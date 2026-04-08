@@ -15,7 +15,7 @@ async function setupSchedules() {
   const results: { name: string; ok: boolean; error?: string }[] = [];
 
   const schedules = [
-    { name: "day-before", cron: "0 7 * * *", path: "/api/reminders/day-before" },
+    { name: "day-before", cron: "0 * * * *", path: "/api/reminders/day-before" },
     { name: "three-hours", cron: "0 * * * *", path: "/api/reminders/three-hours" },
   ];
 
