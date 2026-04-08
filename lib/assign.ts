@@ -17,6 +17,30 @@ async function confirmedCount(sessionId: string): Promise<number> {
   return count ?? 0;
 }
 
+async function confirmedGlassesCount(sessionId: string): Promise<number> {
+  const { count } = await supabase
+    .from("bookings")
+    .select("*", { count: "exact", head: true })
+    .eq("session_id", sessionId)
+    .eq("status", "confirmed")
+    .eq("glasses", "glasses");
+  return count ?? 0;
+}
+
+async function hasSpaceFor(
+  sessionId: string,
+  maxParticipants: number,
+  glasses: string
+): Promise<boolean> {
+  const total = await confirmedCount(sessionId);
+  if (total >= maxParticipants) return false;
+  if (glasses === "glasses") {
+    const gCount = await confirmedGlassesCount(sessionId);
+    if (gCount >= 1) return false;
+  }
+  return true;
+}
+
 function startsWithinThreeHours(session: { date: string; start_time: string }): boolean {
   const now = localNow();
   const start = new Date(`${session.date}T${session.start_time}`);
@@ -80,8 +104,7 @@ export async function tryConfirm(
     if (!better.length) return { confirmedId: null, vacatedSessionId: null };
 
     for (const booking of better) {
-      const count = await confirmedCount(booking.session_id);
-      if (count < booking.sessions.max_participants) {
+      if (await hasSpaceFor(booking.session_id, booking.sessions.max_participants, booking.glasses)) {
         // Upgrade to better session
         await supabase
           .from("bookings")
@@ -136,8 +159,7 @@ export async function tryConfirm(
 
   // --- CASE A: not confirmed anywhere ---
   for (const booking of pending) {
-    const count = await confirmedCount(booking.session_id);
-    if (count < booking.sessions.max_participants) {
+    if (await hasSpaceFor(booking.session_id, booking.sessions.max_participants, booking.glasses)) {
       await supabase
         .from("bookings")
         .update({ status: "confirmed" })
@@ -270,13 +292,13 @@ export async function runNightlyAssignment(
   let noSpots = 0;
   const { data: remainingPending } = await supabase
     .from("bookings")
-    .select("email, full_name, session_id, sessions(max_participants)")
+    .select("email, full_name, glasses, session_id, sessions(max_participants)")
     .eq("status", "pending");
 
   if (remainingPending?.length) {
     const emailMap = new Map<
       string,
-      { full_name: string; sessions: { session_id: string; max: number }[] }
+      { full_name: string; glasses: string; sessions: { session_id: string; max: number }[] }
     >();
 
     for (const b of remainingPending) {
@@ -284,13 +306,12 @@ export async function runNightlyAssignment(
         b as unknown as { sessions: { max_participants: number } }
       ).sessions.max_participants;
       if (!emailMap.has(b.email)) {
-        emailMap.set(b.email, { full_name: b.full_name, sessions: [] });
+        emailMap.set(b.email, { full_name: b.full_name, glasses: b.glasses, sessions: [] });
       }
       emailMap.get(b.email)!.sessions.push({ session_id: b.session_id, max });
     }
 
-    for (const [email, info] of emailMap) {
-      // Skip if this person is already confirmed somewhere
+    for (const [email, personInfo] of emailMap) {
       const { count: isConfirmed } = await supabase
         .from("bookings")
         .select("*", { count: "exact", head: true })
@@ -299,16 +320,16 @@ export async function runNightlyAssignment(
       if ((isConfirmed ?? 0) > 0) continue;
 
       let allFull = true;
-      for (const s of info.sessions) {
-        const c = await confirmedCount(s.session_id);
-        if (c < s.max) {
+      for (const s of personInfo.sessions) {
+        const space = await hasSpaceFor(s.session_id, s.max, personInfo.glasses);
+        if (space) {
           allFull = false;
           break;
         }
       }
 
       if (allFull) {
-        await sendNoSpotsFinalEmail(email, info.full_name, baseUrl);
+        await sendNoSpotsFinalEmail(email, personInfo.full_name, baseUrl);
         await supabase
           .from("bookings")
           .delete()

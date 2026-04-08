@@ -13,13 +13,25 @@ interface Session {
   max_participants: number;
   notes: string | null;
   confirmed_count: number;
+  glasses_count: number;
 }
+
+type Glasses = "none" | "contacts" | "glasses";
 
 interface PersonalInfo {
   full_name: string;
   email: string;
   phone: string;
   comments: string;
+  glasses: Glasses;
+}
+
+interface ConfirmedSessionInfo {
+  date: string;
+  start_time: string;
+  end_time: string;
+  location: string;
+  room: string | null;
 }
 
 type Step = "info" | "first" | "backups" | "submitted";
@@ -29,6 +41,7 @@ const emptyInfo: PersonalInfo = {
   email: "",
   phone: "",
   comments: "",
+  glasses: "none",
 };
 
 function formatDate(dateStr: string) {
@@ -45,8 +58,10 @@ function formatTime(timeStr: string) {
   return `${h}:${m}`;
 }
 
-function isFull(session: Session) {
-  return session.confirmed_count >= session.max_participants;
+function isFullFor(session: Session, glasses: Glasses) {
+  if (session.confirmed_count >= session.max_participants) return true;
+  if (glasses === "glasses" && session.glasses_count >= 1) return true;
+  return false;
 }
 
 export default function Home() {
@@ -60,6 +75,8 @@ export default function Home() {
   const [firstChoice, setFirstChoice] = useState<Session | null>(null);
   const [backup1, setBackup1] = useState<Session | null>(null);
   const [backup2, setBackup2] = useState<Session | null>(null);
+  const [confirmedSession, setConfirmedSession] = useState<ConfirmedSessionInfo | null>(null);
+  const [wasConfirmed, setWasConfirmed] = useState(false);
 
   const fetchSessions = useCallback(async () => {
     const today = new Date().toISOString().split("T")[0];
@@ -89,9 +106,21 @@ export default function Home() {
       counts[row.session_id] = (counts[row.session_id] ?? 0) + 1;
     }
 
+    const { data: glassesData } = await supabase
+      .from("bookings")
+      .select("session_id")
+      .eq("status", "confirmed")
+      .eq("glasses", "glasses");
+
+    const glassesCounts: Record<string, number> = {};
+    for (const row of glassesData ?? []) {
+      glassesCounts[row.session_id] = (glassesCounts[row.session_id] ?? 0) + 1;
+    }
+
     const withCounts = (sessionData ?? []).map((s) => ({
       ...s,
       confirmed_count: counts[s.id] ?? 0,
+      glasses_count: glassesCounts[s.id] ?? 0,
     }));
 
     setSessions(withCounts);
@@ -158,18 +187,29 @@ export default function Home() {
           email: info.email,
           phone: info.phone || null,
           comments: info.comments || null,
+          glasses: info.glasses,
           sessions: sessionChoices,
         }),
       });
 
+      const body = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        setError("Failed to submit application: " + (body?.error ?? "Unknown error"));
+        if (res.status === 409) {
+          setError(body?.error ?? "You have already registered with this email.");
+        } else {
+          setError("Failed to submit: " + (body?.error ?? "Unknown error"));
+        }
         setSubmitting(false);
         return;
       }
+
+      setWasConfirmed(!!body?.confirmed);
+      if (body?.session) {
+        setConfirmedSession(body.session);
+      }
     } catch {
-      setError("Failed to submit application. Please try again.");
+      setError("Failed to submit. Please try again.");
       setSubmitting(false);
       return;
     }
@@ -192,10 +232,40 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             </div>
-            <h2 className="mb-2 text-xl font-semibold text-blue-900">Application Received</h2>
+            <h2 className="mb-2 text-xl font-semibold text-blue-900">
+              {wasConfirmed ? "Session Confirmed" : "Registration Received"}
+            </h2>
             <p className="text-blue-700">
-              We have received your application. You will be notified once your session is confirmed.
+              {wasConfirmed
+                ? "You have been confirmed for the following session:"
+                : "We have received your registration. You are on the waitlist and will be notified once a spot opens up."}
             </p>
+
+            {wasConfirmed && confirmedSession && (
+              <div className="mx-auto mt-6 max-w-xs rounded-lg border border-blue-200 bg-white p-4 text-left">
+                <div className="text-sm font-semibold text-gray-900">{formatDate(confirmedSession.date)}</div>
+                <div className="mt-1 text-sm text-gray-600">
+                  {formatTime(confirmedSession.start_time)} – {formatTime(confirmedSession.end_time)}
+                </div>
+                <div className="mt-1 text-sm text-gray-600">
+                  {confirmedSession.location}
+                  {confirmedSession.room && `, ${confirmedSession.room}`}
+                </div>
+              </div>
+            )}
+
+            {!wasConfirmed && firstChoice && (
+              <div className="mx-auto mt-6 max-w-xs rounded-lg border border-blue-200 bg-white p-4 text-left">
+                <div className="mb-1 text-xs font-medium text-blue-600">Your selections</div>
+                <div className="text-sm text-gray-900">{formatDate(firstChoice.date)} — {formatTime(firstChoice.start_time)}</div>
+                {backup1 && (
+                  <div className="mt-1 text-sm text-gray-500">Backup: {formatDate(backup1.date)} — {formatTime(backup1.start_time)}</div>
+                )}
+                {backup2 && (
+                  <div className="mt-1 text-sm text-gray-500">Backup: {formatDate(backup2.date)} — {formatTime(backup2.start_time)}</div>
+                )}
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -258,6 +328,30 @@ export default function Home() {
                   className={inputClass} placeholder="Enter your phone number" />
               </div>
               <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Vision / Glasses <span className="text-red-400">*</span>
+                </label>
+                <div className="flex flex-col gap-2">
+                  {([
+                    ["none", "No glasses"],
+                    ["contacts", "Contact lenses"],
+                    ["glasses", "Glasses"],
+                  ] as const).map(([value, label]) => (
+                    <label key={value} className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="glasses"
+                        value={value}
+                        checked={info.glasses === value}
+                        onChange={() => setInfo({ ...info, glasses: value })}
+                        className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
                 <label htmlFor="comments" className="mb-1 block text-sm font-medium text-gray-700">
                   Comments <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
@@ -295,6 +389,7 @@ export default function Home() {
                   <SessionCard
                     key={s.id}
                     session={s}
+                    glasses={info.glasses}
                     onClick={() => handleFirstChoice(s)}
                   />
                 ))}
@@ -333,6 +428,7 @@ export default function Home() {
                     <SessionCard
                       key={s.id}
                       session={s}
+                      glasses={info.glasses}
                       onClick={() => toggleBackup(s)}
                       selected={!!label}
                       badge={label}
@@ -346,7 +442,7 @@ export default function Home() {
                 onClick={handleSubmit}
                 disabled={submitting}
                 className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50">
-                {submitting ? "Submitting…" : "Submit Application"}
+                {submitting ? "Submitting…" : "Submit Registration"}
               </button>
               {!backup1 && (
                 <span className="self-center text-xs text-gray-400">
@@ -363,16 +459,18 @@ export default function Home() {
 
 function SessionCard({
   session,
+  glasses,
   onClick,
   selected,
   badge,
 }: {
   session: Session;
+  glasses: Glasses;
   onClick: () => void;
   selected?: boolean;
   badge?: string | null;
 }) {
-  const full = isFull(session);
+  const full = isFullFor(session, glasses);
   const spots = session.max_participants - session.confirmed_count;
 
   return (

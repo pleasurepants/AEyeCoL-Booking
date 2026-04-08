@@ -5,11 +5,12 @@ import { sendNoSpotsEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { full_name, email, phone, comments, sessions } = body as {
+  const { full_name, email, phone, comments, glasses, sessions } = body as {
     full_name: string;
     email: string;
     phone: string | null;
     comments: string | null;
+    glasses: string;
     sessions: { session_id: string; preference_order: number }[];
   };
 
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const glassesValue = glasses || "none";
+
   const { count: confirmedExisting } = await supabase
     .from("bookings")
     .select("*", { count: "exact", head: true })
@@ -28,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   if ((confirmedExisting ?? 0) > 0) {
     return NextResponse.json(
-      { error: "You already have a confirmed booking" },
+      { error: "This email already has a confirmed registration." },
       { status: 409 }
     );
   }
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   if ((pendingExisting ?? 0) > 0) {
     return NextResponse.json(
-      { error: "You already have a pending application" },
+      { error: "This email already has a pending registration." },
       { status: 409 }
     );
   }
@@ -53,6 +56,7 @@ export async function POST(req: NextRequest) {
     email,
     phone: phone || null,
     comments: comments || null,
+    glasses: glassesValue,
     status: "pending",
   }));
 
@@ -71,7 +75,26 @@ export async function POST(req: NextRequest) {
 
   if (!result.confirmedId) {
     await sendNoSpotsEmail(email, full_name);
+    return NextResponse.json({ ok: true, confirmed: false });
   }
 
-  return NextResponse.json({ ok: true, confirmed: !!result.confirmedId });
+  const { data: confirmedBooking } = await supabase
+    .from("bookings")
+    .select("session_id, sessions(date, start_time, end_time, location, room)")
+    .eq("id", result.confirmedId)
+    .single();
+
+  const session = confirmedBooking
+    ? (confirmedBooking as unknown as {
+        sessions: {
+          date: string;
+          start_time: string;
+          end_time: string;
+          location: string;
+          room: string | null;
+        };
+      }).sessions
+    : null;
+
+  return NextResponse.json({ ok: true, confirmed: true, session });
 }
