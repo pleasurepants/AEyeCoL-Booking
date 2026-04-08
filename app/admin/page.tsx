@@ -98,6 +98,7 @@ export default function AdminPage() {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [deletingBookingId, setDeletingBookingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [includePast, setIncludePast] = useState(false);
 
   // Email modal
   const [emailTarget, setEmailTarget] = useState<Booking | null>(null);
@@ -161,17 +162,30 @@ export default function AdminPage() {
 
   useEffect(() => { if (authed) fetchSessions(); }, [authed, fetchSessions]);
 
-  /* ─── filtered sessions based on search ─── */
+  /* ─── filtered sessions based on search + past toggle ─── */
   const filteredSessions = useMemo(() => {
-    if (!search.trim()) return sessions;
-    const q = search.trim().toLowerCase();
-    return sessions.map((s) => ({
-      ...s,
-      bookings: s.bookings.filter(
-        (b) => b.full_name.toLowerCase().includes(q) || b.email.toLowerCase().includes(q)
-      ),
-    })).filter((s) => s.bookings.length > 0);
-  }, [sessions, search]);
+    const now = new Date();
+    let result = sessions;
+
+    if (!includePast) {
+      result = result.filter((s) => {
+        const sessionStart = new Date(`${s.date}T${s.start_time}`);
+        return sessionStart > now;
+      });
+    }
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.map((s) => ({
+        ...s,
+        bookings: s.bookings.filter(
+          (b) => b.full_name.toLowerCase().includes(q) || b.email.toLowerCase().includes(q)
+        ),
+      })).filter((s) => s.bookings.length > 0);
+    }
+
+    return result;
+  }, [sessions, search, includePast]);
 
   /* ─── handlers ─── */
 
@@ -306,6 +320,16 @@ export default function AdminPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 min-w-[200px] rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
+          <button
+            onClick={() => setIncludePast(!includePast)}
+            className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+              includePast
+                ? "border-blue-300 bg-blue-50 text-blue-700"
+                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            Past Sessions: {includePast ? "Shown" : "Hidden"}
+          </button>
           <button onClick={handleExportCSV} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Export CSV</button>
           <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
             {showForm ? "Cancel" : "Add Session"}
