@@ -280,7 +280,7 @@ export default function Home() {
               <button onClick={() => setStep("info")} className="text-sm text-blue-600 hover:underline">← Back</button>
             </div>
             <p className="mb-5 text-sm text-gray-500">
-              Choose the session you would most like to attend.
+              Choose the session you would most like to attend. Sessions marked &quot;Full&quot; can still be selected — you&apos;ll be placed on the waitlist and automatically confirmed if a spot opens up.
             </p>
 
             {loading ? (
@@ -312,7 +312,7 @@ export default function Home() {
                 className="text-sm text-blue-600 hover:underline">← Back</button>
             </div>
             <p className="mb-5 text-sm text-gray-500">
-              Optionally choose up to 2 backup sessions in case your first choice is full. You can also skip and submit now.
+              Optionally choose up to 2 backup sessions in case your first choice is full. Full sessions can also be selected as backups — you&apos;ll join the waitlist. You can also skip and submit now.
             </p>
 
             <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
@@ -393,8 +393,8 @@ function SessionCard({
       </div>
       <div className="mt-2 flex items-center gap-2">
         {full ? (
-          <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
-            Full
+          <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+            Full — Waitlist Available
           </span>
         ) : (
           <span

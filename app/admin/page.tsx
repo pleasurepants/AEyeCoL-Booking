@@ -96,8 +96,6 @@ export default function AdminPage() {
 
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [deletingBookingId, setDeletingBookingId] = useState<string | null>(null);
-  const [assigning, setAssigning] = useState(false);
-  const [settingUpReminders, setSettingUpReminders] = useState(false);
   const [search, setSearch] = useState("");
 
   // Email modal
@@ -218,23 +216,6 @@ export default function AdminPage() {
     fetchSessions();
   }
 
-  async function handleRunAssignment() {
-    setAssigning(true); setError(null); setSuccess(null);
-    try {
-      const res = await fetch("/api/admin/assign", { method: "POST" });
-      const body = await res.json();
-      if (!res.ok) { setError("Assignment failed: " + (body?.error ?? "Unknown")); }
-      else {
-        const parts: string[] = [];
-        parts.push(`${body.confirmed} confirmed`);
-        if (body.no_spots > 0) parts.push(`${body.no_spots} notified (no spots)`);
-        setSuccess(`Assignment complete: ${parts.join(", ")}`);
-        fetchSessions();
-      }
-    } catch { setError("Assignment request failed."); }
-    setAssigning(false);
-  }
-
   async function handleSendEmail() {
     if (!emailTarget || !emailSubject || !emailMessage) return;
     setSendingEmail(true); setError(null);
@@ -269,30 +250,6 @@ export default function AdminPage() {
     a.download = `confirmed-bookings-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }
-
-  /* ─── setup reminder schedules ─── */
-  async function handleSetupReminders() {
-    setSettingUpReminders(true);
-    setError(null); setSuccess(null);
-    const pw = prompt("Enter admin password:");
-    if (!pw) { setSettingUpReminders(false); return; }
-    try {
-      const res = await fetch("/api/reminders/schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pw }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        setError("Reminder setup failed: " + (body.error || JSON.stringify(body.schedules)));
-      } else {
-        setSuccess("Reminder schedules created successfully (day-before + 3-hour)");
-      }
-    } catch {
-      setError("Failed to setup reminders");
-    }
-    setSettingUpReminders(false);
   }
 
   /* ─── preference display ─── */
@@ -349,12 +306,6 @@ export default function AdminPage() {
             className="flex-1 min-w-[200px] rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
           <button onClick={handleExportCSV} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Export CSV</button>
-          <button onClick={handleRunAssignment} disabled={assigning} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-            {assigning ? "Running…" : "Run Assignment Now"}
-          </button>
-          <button onClick={handleSetupReminders} disabled={settingUpReminders} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-            {settingUpReminders ? "Setting up…" : "Setup Reminder Schedules"}
-          </button>
           <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
             {showForm ? "Cancel" : "Add Session"}
           </button>

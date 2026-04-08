@@ -1,5 +1,11 @@
 import { supabase } from "./supabase";
-import { sendConfirmationEmail, sendNoSpotsFinalEmail } from "./email";
+import {
+  sendConfirmationEmail,
+  sendBackfillConfirmationEmail,
+  sendMovedToPreferredEmail,
+  sendStartingSoonEmail,
+  sendNoSpotsFinalEmail,
+} from "./email";
 
 async function confirmedCount(sessionId: string): Promise<number> {
   const { count } = await supabase
@@ -8,6 +14,12 @@ async function confirmedCount(sessionId: string): Promise<number> {
     .eq("session_id", sessionId)
     .eq("status", "confirmed");
   return count ?? 0;
+}
+
+function startsWithinThreeHours(session: { date: string; start_time: string }): boolean {
+  const start = new Date(`${session.date}T${session.start_time}`);
+  const diffMs = start.getTime() - Date.now();
+  return diffMs > 0 && diffMs <= 3 * 60 * 60 * 1000;
 }
 
 export interface TryConfirmResult {
@@ -31,7 +43,8 @@ export interface TryConfirmResult {
  */
 export async function tryConfirm(
   email: string,
-  baseUrl: string
+  baseUrl: string,
+  isBackfill: boolean = false
 ): Promise<TryConfirmResult> {
   const { data: existing } = await supabase
     .from("bookings")
@@ -88,13 +101,27 @@ export async function tryConfirm(
           await supabase.from("bookings").delete().in("id", worseIds);
         }
 
-        await sendConfirmationEmail(
-          email,
-          booking.full_name,
-          booking.id,
-          booking.sessions,
-          baseUrl
-        );
+        // Fetch old session details for upgrade email
+        const { data: oldSession } = await supabase
+          .from("sessions")
+          .select("date, start_time, end_time, location, room")
+          .eq("id", vacatedSessionId)
+          .single();
+
+        if (oldSession) {
+          await sendMovedToPreferredEmail(
+            email,
+            booking.full_name,
+            booking.id,
+            oldSession,
+            booking.sessions,
+            baseUrl
+          );
+        }
+
+        if (startsWithinThreeHours(booking.sessions)) {
+          await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
+        }
 
         return { confirmedId: booking.id, vacatedSessionId };
       }
@@ -124,13 +151,19 @@ export async function tryConfirm(
         await supabase.from("bookings").delete().in("id", worseIds);
       }
 
-      await sendConfirmationEmail(
-        email,
-        booking.full_name,
-        booking.id,
-        booking.sessions,
-        baseUrl
-      );
+      if (isBackfill) {
+        await sendBackfillConfirmationEmail(
+          email, booking.full_name, booking.id, booking.sessions, baseUrl
+        );
+      } else {
+        await sendConfirmationEmail(
+          email, booking.full_name, booking.id, booking.sessions, baseUrl
+        );
+      }
+
+      if (startsWithinThreeHours(booking.sessions)) {
+        await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
+      }
 
       return { confirmedId: booking.id, vacatedSessionId: null };
     }
@@ -181,7 +214,7 @@ export async function backfillSession(
 
     tried.add(next.email);
 
-    const result = await tryConfirm(next.email, baseUrl);
+    const result = await tryConfirm(next.email, baseUrl, true);
 
     if (result.vacatedSessionId) {
       await backfillSession(result.vacatedSessionId, baseUrl, depth + 1);
@@ -213,7 +246,7 @@ export async function runNightlyAssignment(
     for (const b of allPending) {
       if (seen.has(b.email)) continue;
       seen.add(b.email);
-      const result = await tryConfirm(b.email, baseUrl);
+      const result = await tryConfirm(b.email, baseUrl, true);
       if (result.vacatedSessionId) {
         await backfillSession(result.vacatedSessionId, baseUrl);
       }
