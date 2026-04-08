@@ -121,9 +121,11 @@ export async function tryConfirm(
           );
         }
 
-        if (startsWithinThreeHours(booking.sessions)) {
-          await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
-        }
+        try {
+          if (startsWithinThreeHours(booking.sessions)) {
+            await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
+          }
+        } catch { /* don't break main flow */ }
 
         return { confirmedId: booking.id, vacatedSessionId };
       }
@@ -163,9 +165,11 @@ export async function tryConfirm(
         );
       }
 
-      if (startsWithinThreeHours(booking.sessions)) {
-        await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
-      }
+      try {
+        if (startsWithinThreeHours(booking.sessions)) {
+          await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
+        }
+      } catch { /* don't break main flow */ }
 
       return { confirmedId: booking.id, vacatedSessionId: null };
     }
