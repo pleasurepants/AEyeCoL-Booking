@@ -263,8 +263,9 @@ export default function Home() {
               )}
 
               <div className="mx-auto mt-6 max-w-sm text-left text-sm text-emerald-800 space-y-2">
-                <p>• You will receive a reminder email <strong>1 day before</strong> and <strong>3 hours before</strong> your session.</p>
+                <p>• You will receive a reminder email <strong>24 hours</strong> and <strong>3 hours</strong> before your session.</p>
                 <p>• If you need to cancel, use the link in your confirmation email.</p>
+                <p className="text-emerald-600">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your spam/junk folder.</p>
               </div>
             </div>
           ) : wasConfirmed && isBackupConfirm ? (
@@ -295,8 +296,9 @@ export default function Home() {
 
               <div className="mx-auto mt-6 max-w-sm text-left text-sm text-blue-800 space-y-2">
                 <p>• If a spot opens up in your first choice, you will be <strong>automatically upgraded</strong> and notified by email.</p>
-                <p>• You will receive a reminder email <strong>1 day before</strong> and <strong>3 hours before</strong> your session.</p>
+                <p>• You will receive a reminder email <strong>24 hours</strong> and <strong>3 hours</strong> before your session.</p>
                 <p>• If you need to cancel, use the link in your confirmation email.</p>
+                <p className="text-blue-600">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your spam/junk folder.</p>
               </div>
             </div>
           ) : (
@@ -328,6 +330,7 @@ export default function Home() {
               <div className="mx-auto mt-6 max-w-sm text-left text-sm text-amber-800 space-y-2">
                 <p>• If a spot opens up in any of your preferred sessions, you will be <strong>automatically confirmed</strong> and notified by email.</p>
                 <p>• No action is needed from you — just keep an eye on your inbox.</p>
+                <p className="text-amber-600">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your spam/junk folder.</p>
               </div>
             </div>
           )}
