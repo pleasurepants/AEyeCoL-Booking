@@ -6,10 +6,14 @@ async function setupSchedules() {
     return NextResponse.json({ error: "QSTASH_TOKEN not configured" }, { status: 500 });
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  let baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
   if (!baseUrl) {
     return NextResponse.json({ error: "NEXT_PUBLIC_SITE_URL not configured" }, { status: 500 });
   }
+  if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+    baseUrl = `https://${baseUrl}`;
+  }
+  baseUrl = baseUrl.replace(/\/+$/, "");
 
   const qstashUrl = process.env.QSTASH_URL || "https://qstash.upstash.io";
   const results: { name: string; ok: boolean; error?: string }[] = [];
@@ -42,7 +46,7 @@ async function setupSchedules() {
   }
 
   const allOk = results.every((r) => r.ok);
-  return NextResponse.json({ ok: allOk, schedules: results }, { status: allOk ? 200 : 500 });
+  return NextResponse.json({ ok: allOk, baseUrl, schedules: results }, { status: allOk ? 200 : 500 });
 }
 
 export async function GET() {
