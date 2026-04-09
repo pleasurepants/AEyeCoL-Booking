@@ -26,7 +26,7 @@ async function setupSchedules() {
   for (const s of schedules) {
     try {
       const destination = `${baseUrl}${s.path}`;
-      const res = await fetch(`${qstashUrl}/v2/schedules/${encodeURIComponent(destination)}`, {
+      const res = await fetch(`${qstashUrl}/v2/schedules/${destination}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${qstashToken}`,
