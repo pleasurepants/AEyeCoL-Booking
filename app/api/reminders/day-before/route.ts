@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { supabase } from "@/lib/supabase";
-import { localNow, localTodayStr, localTomorrowStr } from "@/lib/timezone";
+import { localNow } from "@/lib/timezone";
 
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
@@ -29,8 +29,6 @@ async function handleReminder() {
   }
 
   const now = localNow();
-  const todayStr = localTodayStr();
-  const tomorrowStr = localTomorrowStr();
 
   // Find sessions starting in 23.5h – 24.5h from now
   const loMs = 23 * 60 * 60 * 1000 + 30 * 60 * 1000;
@@ -38,23 +36,28 @@ async function handleReminder() {
   const loTime = new Date(now.getTime() + loMs);
   const hiTime = new Date(now.getTime() + hiMs);
 
-  const pad = (d: Date) => d.toISOString().split("T")[1].substring(0, 8);
+  const padTime = (d: Date) => d.toISOString().split("T")[1].substring(0, 8);
+  const padDate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
 
-  // Sessions could be today or tomorrow depending on the time
   const candidates: { date: string; loT: string; hiT: string }[] = [];
+  const loDateStr = padDate(loTime);
+  const hiDateStr = padDate(hiTime);
 
-  if (loTime.toISOString().split("T")[0] === hiTime.toISOString().split("T")[0]) {
-    // Both bounds fall on the same day
-    const dateStr = loTime.getDate() === now.getDate() ? todayStr : tomorrowStr;
-    candidates.push({ date: dateStr, loT: pad(loTime), hiT: pad(hiTime) });
+  if (loDateStr === hiDateStr) {
+    candidates.push({ date: loDateStr, loT: padTime(loTime), hiT: padTime(hiTime) });
   } else {
-    // Window spans midnight — split into two queries
-    candidates.push({ date: todayStr, loT: pad(loTime), hiT: "23:59:59" });
-    candidates.push({ date: tomorrowStr, loT: "00:00:00", hiT: pad(hiTime) });
+    candidates.push({ date: loDateStr, loT: padTime(loTime), hiT: "23:59:59" });
+    candidates.push({ date: hiDateStr, loT: "00:00:00", hiT: padTime(hiTime) });
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
   let sent = 0;
+  const debug = { now: now.toISOString(), loTime: loTime.toISOString(), hiTime: hiTime.toISOString(), candidates };
 
   for (const c of candidates) {
     const { data: sessions } = await supabase
@@ -105,5 +108,5 @@ async function handleReminder() {
     }
   }
 
-  return NextResponse.json({ ok: true, sent, checked_at: now.toISOString() });
+  return NextResponse.json({ ok: true, sent, ...debug });
 }
