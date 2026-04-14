@@ -6,6 +6,7 @@ import {
   sendMovedToPreferredEmail,
   sendStartingSoonEmail,
   sendNoSpotsFinalEmail,
+  sendAdminBookingEventEmail,
 } from "./email";
 
 async function confirmedCount(sessionId: string): Promise<number> {
@@ -145,6 +146,15 @@ export async function tryConfirm(
         }
 
         try {
+          await sendAdminBookingEventEmail({
+            eventType: "confirmed",
+            participantEmail: email,
+            participantName: booking.full_name,
+            session: booking.sessions,
+          });
+        } catch { /* don't break main flow */ }
+
+        try {
           if (startsWithinThreeHours(booking.sessions)) {
             await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
           }
@@ -186,6 +196,15 @@ export async function tryConfirm(
           email, booking.full_name, booking.id, booking.sessions, baseUrl
         );
       }
+
+      try {
+        await sendAdminBookingEventEmail({
+          eventType: "confirmed",
+          participantEmail: email,
+          participantName: booking.full_name,
+          session: booking.sessions,
+        });
+      } catch { /* don't break main flow */ }
 
       try {
         if (startsWithinThreeHours(booking.sessions)) {

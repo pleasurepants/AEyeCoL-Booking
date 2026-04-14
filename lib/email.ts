@@ -35,6 +35,42 @@ function locationStr(s: SessionInfo) {
   return s.room ? `${s.location}, ${s.room}` : s.location;
 }
 
+const DEFAULT_ADMIN_NOTIFICATION_EMAIL = "hctlpupil@gmail.com";
+
+export async function sendAdminBookingEventEmail(params: {
+  eventType: "confirmed" | "cancelled";
+  participantEmail: string;
+  participantName: string;
+  session: SessionInfo;
+}) {
+  const resend = getResend();
+  const sender = from();
+  const adminEmail =
+    process.env.ADMIN_NOTIFICATION_EMAIL || DEFAULT_ADMIN_NOTIFICATION_EMAIL;
+  if (!resend || !sender || !adminEmail) return;
+
+  const eventLabel = params.eventType === "confirmed" ? "CONFIRMED" : "CANCELLED";
+  const dateLabel = fmtDate(params.session.date);
+  const timeLabel = `${fmtTime(params.session.start_time)} – ${fmtTime(params.session.end_time)}`;
+
+  await resend.emails.send({
+    from: sender,
+    to: adminEmail,
+    subject: `[Booking ${eventLabel}] ${params.participantName} · ${dateLabel} ${timeLabel}`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 620px; margin: 0 auto; color: #1f2937;">
+        <h2 style="color: #111827; margin-bottom: 8px;">Booking ${eventLabel}</h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+          <tr><td style="padding: 8px 0; color: #6b7280; width: 180px;">Participant</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${params.participantName}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Email</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${params.participantEmail}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Date</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${dateLabel}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Time</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${timeLabel}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${locationStr(params.session)}</td></tr>
+        </table>
+      </div>`,
+  });
+}
+
 export async function sendConfirmationEmail(
   email: string,
   fullName: string,

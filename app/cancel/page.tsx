@@ -32,6 +32,10 @@ function formatTime(timeStr: string) {
   return `${h}:${m}`;
 }
 
+function isSessionExpired(session: { date: string; end_time: string }) {
+  return new Date(`${session.date}T${session.end_time}`).getTime() <= Date.now();
+}
+
 export default function CancelPage() {
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gray-50"><p className="text-gray-400">Loading…</p></div>}>
@@ -48,6 +52,7 @@ function CancelContent() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [cancelled, setCancelled] = useState(false);
+  const [expired, setExpired] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchBooking = useCallback(async () => {
@@ -69,7 +74,9 @@ function CancelContent() {
       return;
     }
 
-    setBooking(data as unknown as BookingDetails);
+    const bookingData = data as unknown as BookingDetails;
+    setExpired(isSessionExpired(bookingData.sessions));
+    setBooking(bookingData);
     setLoading(false);
   }, [token]);
 
@@ -79,6 +86,7 @@ function CancelContent() {
 
   async function handleCancel() {
     if (!token) return;
+    if (expired) return;
 
     setCancelling(true);
     setError(null);
@@ -92,6 +100,12 @@ function CancelContent() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
+        if (res.status === 410) {
+          setExpired(true);
+          setError(null);
+          setCancelling(false);
+          return;
+        }
         setError("Failed to cancel booking: " + (body?.error ?? "Unknown error"));
         setCancelling(false);
         return;
@@ -160,7 +174,7 @@ function CancelContent() {
           </div>
         )}
 
-        {booking && !cancelled && !error && (
+        {booking && !cancelled && !error && !expired && (
           <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
             <h2 className="mb-2 text-lg font-semibold text-gray-900">
               Cancel your booking?
@@ -215,6 +229,26 @@ function CancelContent() {
                 Keep Booking
               </a>
             </div>
+          </div>
+        )}
+
+        {booking && !cancelled && expired && (
+          <div className="rounded-xl border border-gray-300 bg-gray-100 p-8 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-200">
+              <svg className="h-7 w-7 text-gray-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+            </div>
+            <h2 className="mb-2 text-xl font-semibold text-gray-800">Session Expired</h2>
+            <p className="text-sm text-gray-600">
+              This session has already ended, so this cancellation link is no longer valid.
+            </p>
+            <a
+              href="/"
+              className="mt-5 inline-block rounded-lg bg-gray-700 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+            >
+              Back to Booking Page
+            </a>
           </div>
         )}
       </main>

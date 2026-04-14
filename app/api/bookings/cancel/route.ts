@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { backfillSession } from "@/lib/assign";
-import { sendCancellationConfirmationEmail } from "@/lib/email";
+import { sendAdminBookingEventEmail, sendCancellationConfirmationEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   const { booking_id } = await req.json();
@@ -35,6 +35,13 @@ export async function POST(req: NextRequest) {
     location: string;
     room: string | null;
   };
+  const sessionEnd = new Date(`${sessionInfo.date}T${sessionInfo.end_time}`);
+  if (sessionEnd.getTime() <= Date.now()) {
+    return NextResponse.json(
+      { error: "Session already expired. Cancellation is no longer available." },
+      { status: 410 }
+    );
+  }
 
   // 2. Delete this booking + all other bookings for this person (full withdrawal)
   const { error: deleteError } = await supabase
@@ -52,6 +59,17 @@ export async function POST(req: NextRequest) {
     booking.full_name,
     sessionInfo
   );
+
+  try {
+    await sendAdminBookingEventEmail({
+      eventType: "cancelled",
+      participantEmail: booking.email,
+      participantName: booking.full_name,
+      session: sessionInfo,
+    });
+  } catch {
+    // do not block cancellation if admin notification fails
+  }
 
   // 4. Backfill the freed session
   if (wasConfirmed) {
