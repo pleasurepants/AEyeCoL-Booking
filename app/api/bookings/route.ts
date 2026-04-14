@@ -3,6 +3,12 @@ import { supabase } from "@/lib/supabase";
 import { tryConfirm } from "@/lib/assign";
 import { sendNoSpotsEmail } from "@/lib/email";
 
+function isSessionActive(session: { date: string; end_time: string } | null | undefined) {
+  if (!session) return false;
+  const end = new Date(`${session.date}T${session.end_time}`);
+  return end.getTime() > Date.now();
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { full_name, email, phone, comments, glasses, sessions } = body as {
@@ -23,26 +29,34 @@ export async function POST(req: NextRequest) {
 
   const glassesValue = glasses || "none";
 
-  const { count: confirmedExisting } = await supabase
+  const { data: confirmedExistingRows } = await supabase
     .from("bookings")
-    .select("*", { count: "exact", head: true })
+    .select("id, sessions(date, end_time)")
     .eq("email", email)
     .eq("status", "confirmed");
 
-  if ((confirmedExisting ?? 0) > 0) {
+  const confirmedExisting = (confirmedExistingRows ?? []).filter((row) =>
+    isSessionActive((row as unknown as { sessions: { date: string; end_time: string } | null }).sessions)
+  ).length;
+
+  if (confirmedExisting > 0) {
     return NextResponse.json(
       { error: "This email already has a confirmed registration." },
       { status: 409 }
     );
   }
 
-  const { count: pendingExisting } = await supabase
+  const { data: pendingExistingRows } = await supabase
     .from("bookings")
-    .select("*", { count: "exact", head: true })
+    .select("id, sessions(date, end_time)")
     .eq("email", email)
     .eq("status", "pending");
 
-  if ((pendingExisting ?? 0) > 0) {
+  const pendingExisting = (pendingExistingRows ?? []).filter((row) =>
+    isSessionActive((row as unknown as { sessions: { date: string; end_time: string } | null }).sessions)
+  ).length;
+
+  if (pendingExisting > 0) {
     return NextResponse.json(
       { error: "This email already has a pending registration." },
       { status: 409 }

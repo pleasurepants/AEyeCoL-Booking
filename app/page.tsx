@@ -80,11 +80,15 @@ export default function Home() {
 
   const fetchSessions = useCallback(async () => {
     const today = new Date().toISOString().split("T")[0];
+    const twoWeeksLater = new Date();
+    twoWeeksLater.setDate(twoWeeksLater.getDate() + 14);
+    const endDate = twoWeeksLater.toISOString().split("T")[0];
 
     const { data: sessionData, error: fetchError } = await supabase
       .from("sessions")
       .select("id, date, start_time, end_time, location, room, max_participants, notes, status")
       .gte("date", today)
+      .lte("date", endDate)
       .neq("status", "cancelled")
       .order("date", { ascending: true })
       .order("start_time", { ascending: true });
@@ -118,8 +122,12 @@ export default function Home() {
     }
 
     const now = new Date();
+    const windowEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
     const withCounts = (sessionData ?? [])
-      .filter((s) => new Date(`${s.date}T${s.start_time}`) > now)
+      .filter((s) => {
+        const sessionEnd = new Date(`${s.date}T${s.end_time}`);
+        return sessionEnd > now && sessionEnd <= windowEnd;
+      })
       .map((s) => ({
         ...s,
         confirmed_count: counts[s.id] ?? 0,
