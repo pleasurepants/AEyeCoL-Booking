@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 interface Session {
@@ -340,6 +341,18 @@ export default function Home() {
                 <p>• No action is needed from you — just keep an eye on your inbox.</p>
                 <p className="text-amber-600">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your spam/junk folder.</p>
               </div>
+
+              <div className="mx-auto mt-6 max-w-sm rounded-lg border border-amber-200 bg-white px-4 py-3 text-left text-sm text-amber-900">
+                <p className="mb-2">
+                  Want to hear about <strong>brand-new sessions</strong> as they open (not just spots in your current picks)?
+                </p>
+                <Link
+                  href={`/subscribe?email=${encodeURIComponent(info.email)}&full_name=${encodeURIComponent(info.full_name)}`}
+                  className="inline-block rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+                >
+                  Notify me about new sessions
+                </Link>
+              </div>
             </div>
           )}
         </main>
@@ -456,19 +469,28 @@ export default function Home() {
               <div className="py-20 text-center text-gray-400">Loading…</div>
             ) : sessions.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 py-20 text-center text-gray-400">
-                No sessions available
+                <p>No sessions available right now.</p>
+                <Link
+                  href={`/subscribe?email=${encodeURIComponent(info.email)}&full_name=${encodeURIComponent(info.full_name)}`}
+                  className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  Notify me when new sessions open
+                </Link>
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {sessions.map((s) => (
-                  <SessionCard
-                    key={s.id}
-                    session={s}
-                    glasses={info.glasses}
-                    onClick={() => handleFirstChoice(s)}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {sessions.map((s) => (
+                    <SessionCard
+                      key={s.id}
+                      session={s}
+                      glasses={info.glasses}
+                      onClick={() => handleFirstChoice(s)}
+                    />
+                  ))}
+                </div>
+                <SubscribeHint email={info.email} fullName={info.full_name} />
+              </>
             )}
           </>
         )}
@@ -588,6 +610,21 @@ function SessionCard({
         <p className="mt-2 text-xs leading-relaxed text-gray-400">{session.notes}</p>
       )}
     </button>
+  );
+}
+
+function SubscribeHint({ email, fullName }: { email: string; fullName: string }) {
+  return (
+    <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-sm text-blue-800">
+      Don&apos;t see a time that works?{" "}
+      <Link
+        href={`/subscribe?email=${encodeURIComponent(email)}&full_name=${encodeURIComponent(fullName)}`}
+        className="font-medium text-blue-700 underline hover:text-blue-900"
+      >
+        Get an email when new sessions open
+      </Link>
+      .
+    </div>
   );
 }
 

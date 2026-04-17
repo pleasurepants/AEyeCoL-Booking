@@ -434,10 +434,87 @@ export async function sendSessionCancelledByAdminEmail(params: {
   });
 }
 
-export async function sendNoSpotsEmail(email: string, fullName: string) {
+export async function sendSubscribedEmail(
+  email: string,
+  fullName: string,
+  unsubscribeToken: string,
+  baseUrl: string
+) {
   const resend = getResend();
   const sender = from();
   if (!resend || !sender) return;
+
+  const greeting = fullName ? `Hi ${fullName},` : "Hello,";
+  const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}`;
+
+  await resend.emails.send({
+    from: sender,
+    to: email,
+    subject: "You're on the notification list — AEyeCoL Study",
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; color: #1f2937;">
+        <h2 style="color: #111827; margin-bottom: 4px;">You're Subscribed</h2>
+        <p style="color: #6b7280; margin-top: 0;">${greeting}</p>
+        <p style="color: #374151; line-height: 1.6;">We'll email you as soon as a new study session is added. No further action is needed on your part.</p>
+        <p style="color: #9ca3af; font-size: 13px; margin-top: 24px;">Changed your mind? <a href="${unsubscribeUrl}" style="color: #2563eb; text-decoration: underline;">Unsubscribe here</a>.</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
+        <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
+      </div>`,
+  });
+}
+
+export async function sendNewSessionAvailableEmail(params: {
+  email: string;
+  fullName: string | null;
+  session: SessionInfo;
+  unsubscribeToken: string;
+  baseUrl: string;
+}) {
+  const resend = getResend();
+  const sender = from();
+  if (!resend || !sender) return;
+
+  const { email, fullName, session, unsubscribeToken, baseUrl } = params;
+  const greeting = fullName ? `Hi ${fullName},` : "Hello,";
+  const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}`;
+  const dateStr = fmtDate(session.date);
+
+  await resend.emails.send({
+    from: sender,
+    to: email,
+    subject: `New Study Session Available — ${dateStr}`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; color: #1f2937;">
+        <h2 style="color: #111827; margin-bottom: 4px;">A New Session Is Open</h2>
+        <p style="color: #6b7280; margin-top: 0;">${greeting}</p>
+        <p style="color: #374151; line-height: 1.6;">Good news — a new study session has just been added. Spots fill quickly, so book soon:</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr><td style="padding: 8px 0; color: #6b7280; width: 100px;">Date</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${dateStr}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Time</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${fmtTime(session.start_time)} – ${fmtTime(session.end_time)}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${locationStr(session)}</td></tr>
+        </table>
+        <a href="${baseUrl}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">Book This Session</a>
+        <p style="color: #9ca3af; font-size: 13px; margin-top: 24px;">Don't want these notifications? <a href="${unsubscribeUrl}" style="color: #2563eb; text-decoration: underline;">Unsubscribe here</a>.</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
+        <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
+      </div>`,
+  });
+}
+
+export async function sendNoSpotsEmail(
+  email: string,
+  fullName: string,
+  baseUrl?: string
+) {
+  const resend = getResend();
+  const sender = from();
+  if (!resend || !sender) return;
+
+  const subscribeBlock = baseUrl
+    ? `
+        <p style="color: #374151; line-height: 1.6; margin-top: 16px;">Want to hear first when new sessions are added? Subscribe below — one click, unsubscribe any time.</p>
+        <a href="${baseUrl}/subscribe?email=${encodeURIComponent(email)}&full_name=${encodeURIComponent(fullName)}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500; margin-top: 4px;">Notify Me About New Sessions</a>`
+    : "";
 
   await resend.emails.send({
     from: sender,
@@ -448,6 +525,7 @@ export async function sendNoSpotsEmail(email: string, fullName: string) {
         <h2 style="color: #111827; margin-bottom: 4px;">Availability Update</h2>
         <p style="color: #6b7280; margin-top: 0;">Hi ${fullName},</p>
         <p style="color: #374151; line-height: 1.6;">Thank you for your application. All your selected sessions are currently full. We will notify you if a spot becomes available.</p>
+        ${subscribeBlock}
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
@@ -472,6 +550,8 @@ export async function sendNoSpotsFinalEmail(
         <h2 style="color: #111827; margin-bottom: 4px;">Availability Update</h2>
         <p style="color: #6b7280; margin-top: 0;">Hi ${fullName},</p>
         <p style="color: #374151; line-height: 1.6;">Unfortunately, all sessions you selected are now full. Please visit <a href="${baseUrl}" style="color: #2563eb; text-decoration: underline;">${baseUrl}</a> to submit a new application.</p>
+        <p style="color: #374151; line-height: 1.6; margin-top: 16px;">Want to hear first when new sessions are added? Subscribe below — one click, unsubscribe any time.</p>
+        <a href="${baseUrl}/subscribe?email=${encodeURIComponent(email)}&full_name=${encodeURIComponent(fullName)}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500; margin-top: 4px;">Notify Me About New Sessions</a>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,

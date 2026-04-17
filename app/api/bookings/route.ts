@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
   const result = await tryConfirm(email, baseUrl);
 
   if (!result.confirmedId) {
-    await sendNoSpotsEmail(email, full_name);
+    await sendNoSpotsEmail(email, full_name, baseUrl);
     return NextResponse.json({ ok: true, confirmed: false });
   }
 

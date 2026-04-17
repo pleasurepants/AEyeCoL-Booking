@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { tryConfirm } from "@/lib/assign";
-import { sendSessionCancelledByAdminEmail } from "@/lib/email";
+import {
+  sendSessionCancelledByAdminEmail,
+  sendNewSessionAvailableEmail,
+} from "@/lib/email";
 
 function getBaseUrl(req: NextRequest) {
   return req.headers.get("x-forwarded-proto") && req.headers.get("host")
@@ -26,7 +30,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Notify subscribers (best-effort; never block session creation).
+  try {
+    const created = Array.isArray(data) ? data[0] : null;
+    if (created) {
+      await notifySubscribersOfNewSession(created, getBaseUrl(req));
+    }
+  } catch (e) {
+    console.error("Failed to notify subscribers:", e);
+  }
+
   return NextResponse.json({ data });
+}
+
+async function notifySubscribersOfNewSession(
+  session: {
+    date: string;
+    start_time: string;
+    end_time: string;
+    location: string;
+    room: string | null;
+  },
+  baseUrl: string
+) {
+  const { data: subs } = await supabaseAdmin
+    .from("subscribers")
+    .select("email, full_name, unsubscribe_token");
+
+  if (!subs?.length) return;
+
+  for (const s of subs) {
+    try {
+      await sendNewSessionAvailableEmail({
+        email: s.email,
+        fullName: s.full_name,
+        session,
+        unsubscribeToken: s.unsubscribe_token,
+        baseUrl,
+      });
+    } catch { /* one failed email shouldn't stop the others */ }
+  }
 }
 
 export async function PATCH(req: NextRequest) {
