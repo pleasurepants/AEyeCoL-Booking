@@ -1,5 +1,9 @@
 # Testing Guide (English)
 
+optional email:
+hctlpupil@gmail.com
+09ijnhy65
+
 This guide walks through the new features from an **end-user's point of view** — no code or database access needed.
 
 You'll need:
