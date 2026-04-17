@@ -7,7 +7,45 @@ import {
   sendStartingSoonEmail,
   sendNoSpotsFinalEmail,
   sendAdminBookingEventEmail,
+  AlternativeInfo,
 } from "./email";
+
+async function fetchAlternatives(
+  email: string,
+  excludeBookingId: string
+): Promise<AlternativeInfo[]> {
+  const { data } = await supabase
+    .from("bookings")
+    .select("id, preference_order, sessions(date, start_time, end_time, location, room)")
+    .eq("email", email)
+    .eq("status", "pending")
+    .neq("id", excludeBookingId)
+    .order("preference_order", { ascending: true });
+
+  if (!data) return [];
+  return data
+    .map((row) => {
+      const s = (row as unknown as {
+        sessions: {
+          date: string;
+          start_time: string;
+          end_time: string;
+          location: string;
+          room: string | null;
+        } | null;
+      }).sessions;
+      if (!s) return null;
+      return {
+        preference_order: (row as { preference_order: number | null }).preference_order,
+        date: s.date,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        location: s.location,
+        room: s.room,
+      } as AlternativeInfo;
+    })
+    .filter((x): x is AlternativeInfo => x !== null);
+}
 
 async function confirmedCount(sessionId: string): Promise<number> {
   const { count } = await supabase
@@ -73,12 +111,20 @@ export async function tryConfirm(
   baseUrl: string,
   isBackfill: boolean = false
 ): Promise<TryConfirmResult> {
-  const { data: existing } = await supabase
+  const { data: existingRows } = await supabase
     .from("bookings")
-    .select("id, session_id, preference_order")
+    .select("id, session_id, preference_order, sessions(date, end_time)")
     .eq("email", email)
-    .eq("status", "confirmed")
-    .maybeSingle();
+    .eq("status", "confirmed");
+
+  // Only treat a confirmed booking as "existing" if its session has not ended.
+  // Expired confirmed rows must not block new pending registrations.
+  const now = localNow();
+  const existing = (existingRows ?? []).find((row) => {
+    const s = (row as unknown as { sessions: { date: string; end_time: string } | null }).sessions;
+    if (!s) return false;
+    return new Date(`${s.date}T${s.end_time}`).getTime() > now.getTime();
+  }) as { id: string; session_id: string; preference_order: number } | undefined;
 
   const { data: pending } = await supabase
     .from("bookings")
@@ -187,13 +233,14 @@ export async function tryConfirm(
         await supabase.from("bookings").delete().in("id", worseIds);
       }
 
+      const alternatives = await fetchAlternatives(email, booking.id);
       if (isBackfill) {
         await sendBackfillConfirmationEmail(
-          email, booking.full_name, booking.id, booking.sessions, baseUrl
+          email, booking.full_name, booking.id, booking.sessions, baseUrl, alternatives
         );
       } else {
         await sendConfirmationEmail(
-          email, booking.full_name, booking.id, booking.sessions, baseUrl
+          email, booking.full_name, booking.id, booking.sessions, baseUrl, alternatives
         );
       }
 

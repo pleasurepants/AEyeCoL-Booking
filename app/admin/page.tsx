@@ -426,11 +426,11 @@ export default function AdminPage() {
                       </select>
                       {deletingSessionId === session.id ? (
                         <div className="flex items-center gap-1">
-                          <button onClick={() => handleDeleteSession(session.id)} className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700">Yes, Delete</button>
-                          <button onClick={() => setDeletingSessionId(null)} className="rounded bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-300">Cancel</button>
+                          <button onClick={() => handleDeleteSession(session.id)} className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700">Yes, Remove</button>
+                          <button onClick={() => setDeletingSessionId(null)} className="rounded bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-300">Keep</button>
                         </div>
                       ) : (
-                        <button onClick={() => setDeletingSessionId(session.id)} className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Delete</button>
+                        <button onClick={() => setDeletingSessionId(session.id)} className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Remove</button>
                       )}
                     </div>
                   </div>
@@ -477,7 +477,7 @@ export default function AdminPage() {
                                     )}
                                     {b.status === "confirmed" && (
                                       <button disabled={isBusy} onClick={() => handleBookingAction("set-pending", b.id)}
-                                        className="rounded bg-amber-500 px-2 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50">Pending</button>
+                                        className="rounded bg-amber-500 px-2 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50">Unconfirm</button>
                                     )}
                                     <select
                                       disabled={isBusy}
@@ -501,7 +501,7 @@ export default function AdminPage() {
                                       </div>
                                     ) : (
                                       <button onClick={() => setDeletingBookingId(b.id)}
-                                        className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Delete</button>
+                                        className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">Remove</button>
                                     )}
                                   </div>
                                 </td>

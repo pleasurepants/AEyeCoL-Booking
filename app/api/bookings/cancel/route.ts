@@ -53,11 +53,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
+  const baseUrl =
+    req.headers.get("x-forwarded-proto") && req.headers.get("host")
+      ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
+      : req.nextUrl.origin;
+
   // 3. Send cancellation confirmation email
   await sendCancellationConfirmationEmail(
     booking.email,
     booking.full_name,
-    sessionInfo
+    sessionInfo,
+    baseUrl
   );
 
   try {
@@ -73,11 +79,6 @@ export async function POST(req: NextRequest) {
 
   // 4. Backfill the freed session
   if (wasConfirmed) {
-    const baseUrl =
-      req.headers.get("x-forwarded-proto") && req.headers.get("host")
-        ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
-        : req.nextUrl.origin;
-
     await backfillSession(freedSessionId, baseUrl);
   }
 

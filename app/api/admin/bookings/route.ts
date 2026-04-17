@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { backfillSession } from "@/lib/assign";
-import { sendConfirmationEmail, sendSessionMovedEmail } from "@/lib/email";
+import {
+  sendConfirmationEmail,
+  sendSessionMovedEmail,
+  sendCancellationConfirmationEmail,
+} from "@/lib/email";
 
 function getBaseUrl(req: NextRequest) {
   return req.headers.get("x-forwarded-proto") && req.headers.get("host")
@@ -47,7 +51,18 @@ export async function POST(req: NextRequest) {
     if (delErr)
       return NextResponse.json({ error: delErr.message }, { status: 500 });
 
+    // Only notify if they actually had a confirmed slot. Removing a pending
+    // (waitlist) row silently avoids spammy "cancelled" emails to people who
+    // never held a confirmed seat.
     if (wasConfirmed) {
+      try {
+        await sendCancellationConfirmationEmail(
+          booking.email,
+          booking.full_name,
+          booking.sessions,
+          baseUrl
+        );
+      } catch { /* don't block delete if email fails */ }
       await backfillSession(sessionId, baseUrl);
     }
     return NextResponse.json({ ok: true });
