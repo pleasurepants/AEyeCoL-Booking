@@ -7,6 +7,22 @@ import {
   sendNewSessionAvailableEmail,
 } from "@/lib/email";
 
+function sanitizeSupervisors(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of input) {
+    if (typeof raw !== "string") continue;
+    const v = raw.trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out;
+}
+
 function getBaseUrl(req: NextRequest) {
   return req.headers.get("x-forwarded-proto") && req.headers.get("host")
     ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
@@ -16,6 +32,8 @@ function getBaseUrl(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
+  const supervisors = sanitizeSupervisors(body.supervisors);
+
   const { data, error } = await supabase.from("sessions").insert({
     date: body.date,
     start_time: body.start_time,
@@ -24,6 +42,7 @@ export async function POST(req: NextRequest) {
     room: body.room ?? null,
     max_participants: body.max_participants,
     notes: body.notes ?? null,
+    supervisors,
   }).select();
 
   if (error) {
@@ -73,21 +92,33 @@ async function notifySubscribersOfNewSession(
 }
 
 export async function PATCH(req: NextRequest) {
-  const { id, status } = await req.json();
+  const body = await req.json();
+  const { id, status } = body;
 
-  if (!id || !status) {
-    return NextResponse.json({ error: "Missing id or status" }, { status: 400 });
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const hasStatus = typeof status === "string" && status.length > 0;
+  const hasSupervisors = Object.prototype.hasOwnProperty.call(body, "supervisors");
+
+  if (!hasStatus && !hasSupervisors) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
   // If cancelling, free all bookings in this session, then try to promote
   // each affected person into one of their remaining (backup) preferences.
-  if (status === "cancelled") {
+  if (hasStatus && status === "cancelled") {
     await cancelSessionAndPromote(id, getBaseUrl(req));
   }
 
+  const update: Record<string, unknown> = {};
+  if (hasStatus) update.status = status;
+  if (hasSupervisors) update.supervisors = sanitizeSupervisors(body.supervisors);
+
   const { error } = await supabase
     .from("sessions")
-    .update({ status })
+    .update(update)
     .eq("id", id);
 
   if (error) {

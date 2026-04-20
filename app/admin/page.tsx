@@ -28,6 +28,7 @@ interface Session {
   max_participants: number;
   notes: string | null;
   status: string;
+  supervisors: string[];
   bookings: Booking[];
 }
 
@@ -39,6 +40,7 @@ interface SessionForm {
   room: string;
   max_participants: number;
   notes: string;
+  supervisors: string[];
 }
 
 interface PreferenceEntry {
@@ -61,7 +63,75 @@ function getDefaultSessionForm(): SessionForm {
   const end = new Date(start.getTime() + 90 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
   const toTimeStr = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  return { date: "", start_time: toTimeStr(start), end_time: toTimeStr(end), location: "Marsstraße 20", room: "", max_participants: 4, notes: "" };
+  return { date: "", start_time: toTimeStr(start), end_time: toTimeStr(end), location: "Marsstraße 20", room: "", max_participants: 4, notes: "", supervisors: ["", ""] };
+}
+
+const SUPERVISOR_PRESETS = ["Karyna", "Franka", "Mingcong", "Babette"] as const;
+const SUPERVISOR_MAX = 4;
+
+function sanitizeSupervisors(arr: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of arr) {
+    const v = raw.trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out;
+}
+
+function SupervisorInputs({
+  value,
+  onChange,
+  idPrefix,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+  idPrefix: string;
+}) {
+  const rows = value.length < 2 ? [...value, ...Array(2 - value.length).fill("")] : value;
+  const setAt = (i: number, v: string) => {
+    const next = [...rows];
+    next[i] = v;
+    onChange(next);
+  };
+  const removeAt = (i: number) => {
+    const next = rows.filter((_, idx) => idx !== i);
+    onChange(next.length < 2 ? [...next, ...Array(2 - next.length).fill("")] : next);
+  };
+  const addRow = () => {
+    if (rows.length >= SUPERVISOR_MAX) return;
+    onChange([...rows, ""]);
+  };
+  const listId = `${idPrefix}-supervisor-presets`;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <datalist id={listId}>
+        {SUPERVISOR_PRESETS.map((n) => <option key={n} value={n} />)}
+      </datalist>
+      {rows.map((v, i) => (
+        <div key={i} className="flex items-center gap-1">
+          <input
+            type="text"
+            list={listId}
+            value={v}
+            onChange={(e) => setAt(i, e.target.value)}
+            placeholder={i === 0 ? "Supervisor 1" : i === 1 ? "Supervisor 2" : `Supervisor ${i + 1}`}
+            className="w-36 rounded-lg border border-gray-300 px-2 py-1 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          {i >= 2 && (
+            <button type="button" onClick={() => removeAt(i)} className="rounded px-1.5 py-0.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-red-500" aria-label="Remove supervisor">✕</button>
+          )}
+        </div>
+      ))}
+      {rows.length < SUPERVISOR_MAX && (
+        <button type="button" onClick={addRow} className="rounded-lg border border-dashed border-gray-300 px-2 py-1 text-xs font-medium text-gray-500 hover:border-blue-400 hover:text-blue-600">+</button>
+      )}
+    </div>
+  );
 }
 
 function formatDate(dateStr: string) {
@@ -96,6 +166,8 @@ export default function AdminPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [supervisorEditId, setSupervisorEditId] = useState<string | null>(null);
+  const [supervisorDraft, setSupervisorDraft] = useState<string[]>(["", ""]);
   const [deletingBookingId, setDeletingBookingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [includePast, setIncludePast] = useState(false);
@@ -135,7 +207,7 @@ export default function AdminPage() {
       .order("start_time", { ascending: false });
 
     if (fetchError) { setError("Failed to load session data."); setLoading(false); return; }
-    setSessions((data ?? []).map((s) => ({ ...s, status: s.status ?? "upcoming" })));
+    setSessions((data ?? []).map((s) => ({ ...s, status: s.status ?? "upcoming", supervisors: s.supervisors ?? [] })));
 
     // Build preference map from all bookings
     const { data: allBookings } = await supabase
@@ -194,7 +266,7 @@ export default function AdminPage() {
     setSubmitting(true); setError(null);
     const res = await fetch("/api/admin/sessions", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: form.date, start_time: form.start_time, end_time: form.end_time, location: form.location, room: form.room || null, max_participants: form.max_participants, notes: form.notes || null }),
+      body: JSON.stringify({ date: form.date, start_time: form.start_time, end_time: form.end_time, location: form.location, room: form.room || null, max_participants: form.max_participants, notes: form.notes || null, supervisors: sanitizeSupervisors(form.supervisors) }),
     });
     if (!res.ok) { const b = await res.json().catch(() => null); setError("Failed to add session: " + (b?.error ?? "Unknown")); }
     else { setForm(getDefaultSessionForm()); setShowForm(false); fetchSessions(); }
@@ -207,6 +279,17 @@ export default function AdminPage() {
     if (!res.ok) { const b = await res.json().catch(() => null); setError("Failed to delete: " + (b?.error ?? "Unknown")); }
     setDeletingSessionId(null);
     fetchSessions();
+  }
+
+  async function handleSessionSupervisors(id: string, supervisors: string[]) {
+    setError(null);
+    const res = await fetch("/api/admin/sessions", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, supervisors: sanitizeSupervisors(supervisors) }),
+    });
+    if (!res.ok) { const b = await res.json().catch(() => null); setError("Supervisor update failed: " + (b?.error ?? "Unknown")); return false; }
+    fetchSessions();
+    return true;
   }
 
   async function handleSessionStatus(id: string, status: string) {
@@ -378,6 +461,14 @@ export default function AdminPage() {
                 <label className="mb-1 block text-sm font-medium text-gray-700">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
                 <input type="text" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={inputClass} placeholder="Any additional information" />
               </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Supervisors <span className="text-gray-400 font-normal">(optional, can edit later)</span></label>
+                <SupervisorInputs
+                  idPrefix="new-session"
+                  value={form.supervisors}
+                  onChange={(next) => setForm({ ...form, supervisors: next })}
+                />
+              </div>
             </div>
             <button type="submit" disabled={submitting} className="mt-5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
               {submitting ? "Submitting…" : "Add Session"}
@@ -404,7 +495,44 @@ export default function AdminPage() {
                   {/* Session header */}
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-gray-900">{formatDate(session.date)}</div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <div className="text-sm font-semibold text-gray-900">{formatDate(session.date)}</div>
+                        {supervisorEditId === session.id ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <SupervisorInputs
+                              idPrefix={`edit-${session.id}`}
+                              value={supervisorDraft}
+                              onChange={setSupervisorDraft}
+                            />
+                            <button
+                              onClick={async () => {
+                                const ok = await handleSessionSupervisors(session.id, supervisorDraft);
+                                if (ok) setSupervisorEditId(null);
+                              }}
+                              className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                            >Save</button>
+                            <button
+                              onClick={() => setSupervisorEditId(null)}
+                              className="rounded bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-300"
+                            >Cancel</button>
+                          </div>
+                        ) : session.supervisors && session.supervisors.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {session.supervisors.map((s, i) => (
+                              <span key={i} className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">{s}</span>
+                            ))}
+                            <button
+                              onClick={() => { setSupervisorDraft(session.supervisors.length < 2 ? [...session.supervisors, ...Array(2 - session.supervisors.length).fill("")] : [...session.supervisors]); setSupervisorEditId(session.id); }}
+                              className="rounded px-1.5 py-0.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-blue-600"
+                            >Edit</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setSupervisorDraft(["", ""]); setSupervisorEditId(session.id); }}
+                            className="rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-400 hover:border-blue-400 hover:text-blue-600"
+                          >+ Add supervisors</button>
+                        )}
+                      </div>
                       <div className="mt-0.5 text-sm text-gray-500">
                         {formatTime(session.start_time)} – {formatTime(session.end_time)} · {session.location}
                         {session.room && `, ${session.room}`}
