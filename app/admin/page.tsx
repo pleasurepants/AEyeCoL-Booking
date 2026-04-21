@@ -203,8 +203,8 @@ export default function AdminPage() {
     const { data, error: fetchError } = await supabase
       .from("sessions")
       .select("*, bookings(*)")
-      .order("date", { ascending: false })
-      .order("start_time", { ascending: false });
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true });
 
     if (fetchError) { setError("Failed to load session data."); setLoading(false); return; }
     setSessions((data ?? []).map((s) => ({ ...s, status: s.status ?? "upcoming", supervisors: s.supervisors ?? [] })));
