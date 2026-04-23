@@ -109,7 +109,7 @@ export default function Home() {
       .select("id, date, start_time, end_time, location, room, max_participants, notes, status")
       .gte("date", today)
       .lte("date", endDate)
-      .neq("status", "cancelled")
+      .or("status.neq.cancelled,status.is.null")
       .order("date", { ascending: true })
       .order("start_time", { ascending: true });
 
