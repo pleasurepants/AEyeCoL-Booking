@@ -65,6 +65,25 @@ function isFullFor(session: Session, glasses: Glasses) {
   return false;
 }
 
+function getVisibleSessions(sessions: Session[], glasses: Glasses): Session[] {
+  const byDate = new Map<string, Session[]>();
+  for (const s of sessions) {
+    if (!byDate.has(s.date)) byDate.set(s.date, []);
+    byDate.get(s.date)!.push(s);
+  }
+  const result: Session[] = [];
+  for (const daySessions of byDate.values()) {
+    let visible = daySessions.slice(0, 2);
+    let i = 2;
+    while (visible.every((s) => isFullFor(s, glasses)) && i < daySessions.length) {
+      visible = [...visible, daySessions[i]];
+      i++;
+    }
+    result.push(...visible);
+  }
+  return result;
+}
+
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,7 +293,7 @@ export default function Home() {
               <div className="mx-auto mt-6 max-w-sm text-left text-sm text-emerald-800 space-y-2">
                 <p>• You will receive a reminder email <strong>24 hours</strong> and <strong>3 hours</strong> before your session.</p>
                 <p>• If you need to cancel, use the link in your confirmation email.</p>
-                <p className="text-emerald-600">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your spam/junk folder.</p>
+                <p className="text-base font-bold text-gray-900">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your <strong>spam/junk folder</strong>.</p>
               </div>
             </div>
           ) : wasConfirmed && isBackupConfirm ? (
@@ -307,7 +326,7 @@ export default function Home() {
                 <p>• If a spot opens up in your first choice, you will be <strong>automatically upgraded</strong> and notified by email.</p>
                 <p>• You will receive a reminder email <strong>24 hours</strong> and <strong>3 hours</strong> before your session.</p>
                 <p>• If you need to cancel, use the link in your confirmation email.</p>
-                <p className="text-blue-600">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your spam/junk folder.</p>
+                <p className="text-base font-bold text-gray-900">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your <strong>spam/junk folder</strong>.</p>
               </div>
             </div>
           ) : (
@@ -339,7 +358,7 @@ export default function Home() {
               <div className="mx-auto mt-6 max-w-sm text-left text-sm text-amber-800 space-y-2">
                 <p>• If a spot opens up in any of your preferred sessions, you will be <strong>automatically confirmed</strong> and notified by email.</p>
                 <p>• No action is needed from you — just keep an eye on your inbox.</p>
-                <p className="text-amber-600">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your spam/junk folder.</p>
+                <p className="text-base font-bold text-gray-900">• Emails are sent from <strong>booking@aeyecol.com</strong>. If you don&apos;t see it, please check your <strong>spam/junk folder</strong>.</p>
               </div>
 
               <div className="mx-auto mt-6 max-w-sm rounded-lg border border-amber-200 bg-white px-4 py-3 text-left text-sm text-amber-900">
@@ -480,7 +499,7 @@ export default function Home() {
             ) : (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {sessions.map((s) => (
+                  {getVisibleSessions(sessions, info.glasses).map((s) => (
                     <SessionCard
                       key={s.id}
                       session={s}
@@ -517,9 +536,10 @@ export default function Home() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {sessions
-                .filter((s) => s.id !== firstChoice.id)
-                .map((s) => {
+              {getVisibleSessions(
+                sessions.filter((s) => s.id !== firstChoice.id),
+                info.glasses
+              ).map((s) => {
                   const label = backupLabel(s);
                   return (
                     <SessionCard
