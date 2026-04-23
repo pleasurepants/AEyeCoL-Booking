@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabaseAdmin as supabase } from "./supabase-admin";
 import { localNow } from "./timezone";
 import {
   sendConfirmationEmail,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { localNow, localTodayStr } from "@/lib/timezone";
 
 function fmtDate(d: string) {
