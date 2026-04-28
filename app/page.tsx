@@ -425,6 +425,7 @@ export default function Home() {
                 <input id="email" type="email" required value={info.email}
                   onChange={(e) => setInfo({ ...info, email: e.target.value })}
                   className={inputClass} placeholder="example@university.edu" />
+                <p className="mt-1.5 text-xs text-gray-400">TUM students: use your <strong className="text-gray-500">@tum.de</strong> address, not @mytum.de.</p>
               </div>
               <div>
                 <label htmlFor="phone" className="mb-1 block text-sm font-medium text-gray-700">
