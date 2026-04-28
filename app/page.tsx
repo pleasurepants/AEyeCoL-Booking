@@ -457,6 +457,7 @@ export default function Home() {
                     </label>
                   ))}
                 </div>
+                <p className="mt-1.5 text-xs text-gray-400">Select <strong className="text-gray-500">Glasses</strong> only if your prescription is stronger than 2 diopters (2 dpt) — equivalent to 200 degrees (200°).</p>
               </div>
               <div>
                 <label htmlFor="comments" className="mb-1 block text-sm font-medium text-gray-700">
