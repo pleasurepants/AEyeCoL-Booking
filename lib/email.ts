@@ -395,17 +395,21 @@ export async function sendSessionCancelledByAdminEmail(params: {
 
   const { email, fullName, cancelledSession, movedToSession, bookingId, baseUrl } = params;
   const dateStr = fmtDate(cancelledSession.date);
+  const confirmUrl = bookingId ? `${baseUrl}/confirm-move?token=${bookingId}` : null;
+  const cancelUrl = bookingId ? `${baseUrl}/cancel?token=${bookingId}` : null;
 
   const movedBlock = movedToSession
     ? `
         <div style="margin: 20px 0; padding: 14px 16px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px;">
-          <div style="font-size: 14px; font-weight: 600; color: #065f46; margin-bottom: 6px;">You have been moved to your backup session</div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <div style="font-size: 14px; font-weight: 600; color: #065f46; margin-bottom: 6px;">We have moved you to an available session</div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 12px;">
             <tr><td style="padding: 4px 10px 4px 0; color: #065f46; white-space: nowrap;">Date</td><td style="padding: 4px 0; color: #064e3b; font-weight: 500;">${fmtDate(movedToSession.date)}</td></tr>
             <tr><td style="padding: 4px 10px 4px 0; color: #065f46; white-space: nowrap;">Time</td><td style="padding: 4px 0; color: #064e3b; font-weight: 500;">${fmtTime(movedToSession.start_time)} – ${fmtTime(movedToSession.end_time)}</td></tr>
             <tr><td style="padding: 4px 10px 4px 0; color: #065f46; white-space: nowrap;">Location</td><td style="padding: 4px 0; color: #064e3b; font-weight: 500;">${locationStr(movedToSession)}</td></tr>
           </table>
-          ${bookingId ? `<p style="margin: 12px 0 0; font-size: 13px; color: #065f46;">If this backup time does not work, you can <a href="${baseUrl}/cancel?token=${bookingId}" style="color: #047857; text-decoration: underline;">cancel this booking</a> and submit a new one.</p>` : ""}
+          <p style="margin: 0 0 10px; font-size: 13px; color: #065f46;">Please let us know if this new time works for you:</p>
+          ${confirmUrl ? `<a href="${confirmUrl}" style="display: inline-block; background: #16a34a; color: #fff; padding: 8px 18px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500; margin-right: 8px;">Confirm</a>` : ""}
+          ${cancelUrl ? `<a href="${cancelUrl}" style="display: inline-block; background: #dc2626; color: #fff; padding: 8px 18px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500;">Cancel &amp; Rebook</a>` : ""}
         </div>`
     : `
         <div style="margin: 20px 0; padding: 14px 16px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 10px;">
@@ -420,16 +424,16 @@ export async function sendSessionCancelledByAdminEmail(params: {
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; color: #1f2937;">
         <h2 style="color: #dc2626; margin-bottom: 4px;">Session Cancelled</h2>
-        <p style="color: #6b7280; margin-top: 0;">Hi ${fullName}, we're sorry to inform you that the following session has been <strong>cancelled</strong> by the research team.</p>
+        <p style="color: #6b7280; margin-top: 0;">Hi ${fullName}, we're sorry — your session has been cancelled due to insufficient participants.</p>
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
           <tr><td style="padding: 8px 0; color: #6b7280; width: 100px;">Date</td><td style="padding: 8px 0; color: #111827; font-weight: 500; text-decoration: line-through;">${dateStr}</td></tr>
           <tr><td style="padding: 8px 0; color: #6b7280;">Time</td><td style="padding: 8px 0; color: #111827; font-weight: 500; text-decoration: line-through;">${fmtTime(cancelledSession.start_time)} – ${fmtTime(cancelledSession.end_time)}</td></tr>
           <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0; color: #111827; font-weight: 500; text-decoration: line-through;">${locationStr(cancelledSession)}</td></tr>
         </table>
         ${movedBlock}
+        ${!movedToSession ? `
         <p style="margin: 24px 0 8px; color: #6b7280; font-size: 14px;">Looking for another time?</p>
-        <a href="${baseUrl}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">Book a New Session</a>
-        <p style="color: #374151; line-height: 1.6; margin-top: 24px;">We apologize for the inconvenience.</p>
+        <a href="${baseUrl}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">Book a New Session</a>` : ""}
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
