@@ -634,13 +634,20 @@ export default function AdminPage() {
                                   </div>
                                 </td>
                                 <td className="whitespace-nowrap px-4 py-2.5">
-                                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                    b.glasses === "glasses" ? "bg-purple-100 text-purple-700"
-                                    : b.glasses === "contacts" ? "bg-sky-100 text-sky-700"
-                                    : "bg-gray-100 text-gray-600"
-                                  }`}>
-                                    {b.glasses === "glasses" ? "Glasses" : b.glasses === "contacts" ? "Contacts" : "None"}
-                                  </span>
+                                  <select
+                                    disabled={isBusy}
+                                    value={b.glasses ?? "none"}
+                                    onChange={(e) => handleBookingAction("set-glasses", b.id, { glasses: e.target.value })}
+                                    className={`rounded-full px-2 py-0.5 text-xs font-medium border-0 cursor-pointer disabled:opacity-50 ${
+                                      b.glasses === "glasses" ? "bg-purple-100 text-purple-700"
+                                      : b.glasses === "contacts" ? "bg-sky-100 text-sky-700"
+                                      : "bg-gray-100 text-gray-600"
+                                    }`}
+                                  >
+                                    <option value="none">None</option>
+                                    <option value="contacts">Contacts</option>
+                                    <option value="glasses">Glasses</option>
+                                  </select>
                                 </td>
                                 <td className="whitespace-nowrap px-4 py-2.5 text-gray-600">{b.email}</td>
                                 <td className="whitespace-nowrap px-4 py-2.5 text-gray-600">{b.phone || "—"}</td>

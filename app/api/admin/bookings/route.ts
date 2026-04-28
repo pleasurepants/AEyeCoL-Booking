@@ -128,6 +128,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, freed_session: booking.session_id });
   }
 
+  if (action === "set-glasses") {
+    const { glasses } = body as { glasses?: string };
+    if (!["none", "contacts", "glasses"].includes(glasses ?? "")) {
+      return NextResponse.json({ error: "Invalid glasses value" }, { status: 400 });
+    }
+    await supabase
+      .from("bookings")
+      .update({ glasses })
+      .eq("id", booking_id);
+    return NextResponse.json({ ok: true });
+  }
+
   if (action === "move") {
     const { target_session_id } = body;
     if (!target_session_id) {
