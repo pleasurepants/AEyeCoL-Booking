@@ -177,6 +177,7 @@ export async function sendSessionMovedEmail(
   if (!resend || !sender) return;
 
   const cancelUrl = `${baseUrl}/cancel?token=${bookingId}`;
+  const confirmUrl = `${baseUrl}/confirm-move?token=${bookingId}`;
 
   await resend.emails.send({
     from: sender,
@@ -197,7 +198,8 @@ export async function sendSessionMovedEmail(
           <tr><td style="padding: 8px 0; color: #6b7280;">Time</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${fmtTime(newSession.start_time)} – ${fmtTime(newSession.end_time)}</td></tr>
           <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${locationStr(newSession)}</td></tr>
         </table>
-        <p style="margin: 24px 0 8px; color: #6b7280; font-size: 14px;">Need to cancel? Click below:</p>
+        <p style="margin: 24px 0 10px; color: #6b7280; font-size: 14px;">Please let us know if this works for you:</p>
+        <a href="${confirmUrl}" style="display: inline-block; background: #16a34a; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500; margin-right: 8px;">Confirm</a>
         <a href="${cancelUrl}" style="display: inline-block; background: #dc2626; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">Cancel Booking</a>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
