@@ -65,7 +65,8 @@ function isFullFor(session: Session, glasses: Glasses) {
   return false;
 }
 
-function getVisibleSessions(sessions: Session[], glasses: Glasses): Session[] {
+function getVisibleSessions(sessions: Session[], _glasses: Glasses): Session[] {
+  void _glasses;
   const byDate = new Map<string, Session[]>();
   for (const s of sessions) {
     if (!byDate.has(s.date)) byDate.set(s.date, []);
@@ -73,13 +74,12 @@ function getVisibleSessions(sessions: Session[], glasses: Glasses): Session[] {
   }
   const result: Session[] = [];
   for (const daySessions of byDate.values()) {
-    let visible = daySessions.slice(0, 2);
-    let i = 2;
-    while (visible.every((s) => isFullFor(s, glasses)) && i < daySessions.length) {
-      visible = [...visible, daySessions[i]];
-      i++;
-    }
-    result.push(...visible);
+    // daySessions arrives sorted by start_time ascending (set in fetchSessions).
+    // Prefer the first afternoon session (start_time >= 12:00); otherwise the
+    // second slot of the day; otherwise whatever single slot exists.
+    const afternoon = daySessions.find((s) => s.start_time >= "12:00");
+    const pick = afternoon ?? daySessions[1] ?? daySessions[0] ?? null;
+    if (pick) result.push(pick);
   }
   return result;
 }

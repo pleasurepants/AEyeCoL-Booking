@@ -21,6 +21,7 @@ async function setupSchedules() {
   const schedules = [
     { name: "day-before", cron: "0 * * * *", path: "/api/reminders/day-before" },
     { name: "three-hours", cron: "0 * * * *", path: "/api/reminders/three-hours" },
+    { name: "check-minimum", cron: "0 9 * * *", path: "/api/sessions/check-minimum" },
   ];
 
   for (const s of schedules) {

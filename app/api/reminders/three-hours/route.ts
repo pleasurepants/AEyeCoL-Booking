@@ -13,6 +13,11 @@ function locStr(location: string, room: string | null) {
   return room ? `${location}, ${room}` : location;
 }
 
+const CONFIRMED_NOTICE = `
+            <div style="margin: 16px 0; padding: 14px 16px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; color: #065f46; font-size: 14px; line-height: 1.5;">
+              <strong>This session is confirmed and will run.</strong> 3 or more participants are registered, so please make sure to attend on time — others are counting on you.
+            </div>`;
+
 export async function GET() {
   return handleReminder();
 }
@@ -61,6 +66,7 @@ async function handleReminder() {
     if (!bookings?.length) continue;
 
     const dateStr = fmtDate(session.date);
+    const isConfirmed = bookings.length >= 3;
 
     for (const b of bookings) {
       await resend.emails.send({
@@ -71,6 +77,7 @@ async function handleReminder() {
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; color: #1f2937;">
             <h2 style="color: #111827; margin-bottom: 4px;">Starting Soon!</h2>
             <p style="color: #6b7280; margin-top: 0;">Hi ${b.full_name}, your study session starts in approximately <strong>3 hours</strong>.</p>
+            ${isConfirmed ? CONFIRMED_NOTICE : ""}
             <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
               <tr><td style="padding: 8px 0; color: #6b7280; width: 100px;">Date</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${dateStr}</td></tr>
               <tr><td style="padding: 8px 0; color: #6b7280;">Time</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${fmtTime(session.start_time)} – ${fmtTime(session.end_time)}</td></tr>
