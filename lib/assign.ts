@@ -10,6 +10,7 @@ import {
   sendSlotUnlockedEmail,
   AlternativeInfo,
 } from "./email";
+import { logEmail } from "./email-log";
 
 async function fetchAlternatives(
   email: string,
@@ -182,7 +183,7 @@ export async function tryConfirm(
           .single();
 
         if (oldSession) {
-          await sendMovedToPreferredEmail(
+          const emailId = await sendMovedToPreferredEmail(
             email,
             booking.full_name,
             booking.id,
@@ -190,6 +191,13 @@ export async function tryConfirm(
             booking.sessions,
             baseUrl
           );
+          if (emailId) await logEmail(emailId, {
+            emailType: "moved_to_preferred",
+            bookingId: booking.id,
+            toEmail: email,
+            toName: booking.full_name,
+            extra: { old_session_id: vacatedSessionId },
+          });
         }
 
         try {
@@ -203,7 +211,13 @@ export async function tryConfirm(
 
         try {
           if (startsWithinThreeHours(booking.sessions)) {
-            await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
+            const emailId = await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
+            if (emailId) await logEmail(emailId, {
+              emailType: "starting_soon",
+              bookingId: booking.id,
+              toEmail: email,
+              toName: booking.full_name,
+            });
           }
         } catch { /* don't break main flow */ }
 
@@ -239,13 +253,25 @@ export async function tryConfirm(
 
       const alternatives = await fetchAlternatives(email, booking.id);
       if (isBackfill) {
-        await sendBackfillConfirmationEmail(
+        const emailId = await sendBackfillConfirmationEmail(
           email, booking.full_name, booking.id, booking.sessions, baseUrl, alternatives
         );
+        if (emailId) await logEmail(emailId, {
+          emailType: "backfill_confirmation",
+          bookingId: booking.id,
+          toEmail: email,
+          toName: booking.full_name,
+        });
       } else {
-        await sendConfirmationEmail(
+        const emailId = await sendConfirmationEmail(
           email, booking.full_name, booking.id, booking.sessions, baseUrl, alternatives
         );
+        if (emailId) await logEmail(emailId, {
+          emailType: "confirmation",
+          bookingId: booking.id,
+          toEmail: email,
+          toName: booking.full_name,
+        });
       }
 
       try {
@@ -259,7 +285,13 @@ export async function tryConfirm(
 
       try {
         if (startsWithinThreeHours(booking.sessions)) {
-          await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
+          const emailId = await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
+          if (emailId) await logEmail(emailId, {
+            emailType: "starting_soon",
+            bookingId: booking.id,
+            toEmail: email,
+            toName: booking.full_name,
+          });
         }
       } catch { /* don't break main flow */ }
 
@@ -402,7 +434,12 @@ export async function runNightlyAssignment(
       }
 
       if (allFull) {
-        await sendNoSpotsFinalEmail(email, personInfo.full_name, baseUrl);
+        const noSpotsEmailId = await sendNoSpotsFinalEmail(email, personInfo.full_name, baseUrl);
+        if (noSpotsEmailId) await logEmail(noSpotsEmailId, {
+          emailType: "no_spots_final",
+          toEmail: email,
+          toName: personInfo.full_name,
+        });
         await supabase
           .from("bookings")
           .delete()

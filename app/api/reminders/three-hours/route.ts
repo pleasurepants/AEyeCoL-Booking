@@ -1,22 +1,8 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { localNow, localTodayStr } from "@/lib/timezone";
-
-function fmtDate(d: string) {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
-    year: "numeric", month: "long", day: "numeric", weekday: "long",
-  });
-}
-function fmtTime(t: string) { const [h, m] = t.split(":"); return `${h}:${m}`; }
-function locStr(location: string, room: string | null) {
-  return room ? `${location}, ${room}` : location;
-}
-
-const CONFIRMED_NOTICE = `
-            <div style="margin: 16px 0; padding: 14px 16px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; color: #065f46; font-size: 14px; line-height: 1.5;">
-              <strong>This session is confirmed and will run.</strong> 3 or more participants are registered, so please make sure to attend on time — others are counting on you.
-            </div>`;
+import { sendThreeHoursReminderEmail } from "@/lib/email";
+import { logEmail } from "@/lib/email-log";
 
 export async function GET() {
   return handleReminder();
@@ -27,12 +13,6 @@ export async function POST() {
 }
 
 async function handleReminder() {
-  const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-  const sender = process.env.FROM_EMAIL;
-  if (!resend || !sender) {
-    return NextResponse.json({ error: "Email not configured" }, { status: 500 });
-  }
-
   const now = localNow();
   const todayStr = localTodayStr();
 
@@ -64,31 +44,24 @@ async function handleReminder() {
       .eq("status", "confirmed");
 
     if (!bookings?.length) continue;
-
-    const dateStr = fmtDate(session.date);
     const isConfirmed = bookings.length >= 3;
 
     for (const b of bookings) {
-      await resend.emails.send({
-        from: sender,
-        to: b.email,
-        subject: `Your study session starts in 3 hours`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; color: #1f2937;">
-            <h2 style="color: #111827; margin-bottom: 4px;">Starting Soon!</h2>
-            <p style="color: #6b7280; margin-top: 0;">Hi ${b.full_name}, your study session starts in approximately <strong>3 hours</strong>.</p>
-            ${isConfirmed ? CONFIRMED_NOTICE : ""}
-            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-              <tr><td style="padding: 8px 0; color: #6b7280; width: 100px;">Date</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${dateStr}</td></tr>
-              <tr><td style="padding: 8px 0; color: #6b7280;">Time</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${fmtTime(session.start_time)} – ${fmtTime(session.end_time)}</td></tr>
-              <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${locStr(session.location, session.room)}</td></tr>
-            </table>
-            <p style="color: #374151; line-height: 1.6;">Please make sure to arrive on time. We look forward to seeing you!</p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
-            <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
-          </div>`,
-      });
-      sent++;
+      try {
+        const emailId = await sendThreeHoursReminderEmail(
+          b.email,
+          b.full_name,
+          session,
+          isConfirmed
+        );
+        if (emailId) await logEmail(emailId, {
+          emailType: "reminder_3h",
+          bookingId: b.id,
+          toEmail: b.email,
+          toName: b.full_name,
+        });
+        sent++;
+      } catch { /* skip failed email */ }
     }
   }
 

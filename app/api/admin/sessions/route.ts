@@ -6,6 +6,7 @@ import {
   sendSessionCancelledByAdminEmail,
   sendNewSessionAvailableEmail,
 } from "@/lib/email";
+import { logEmail } from "@/lib/email-log";
 
 function sanitizeSupervisors(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
@@ -80,12 +81,18 @@ async function notifySubscribersOfNewSession(
 
   for (const s of subs) {
     try {
-      await sendNewSessionAvailableEmail({
+      const emailId = await sendNewSessionAvailableEmail({
         email: s.email,
         fullName: s.full_name,
         session,
         unsubscribeToken: s.unsubscribe_token,
         baseUrl,
+      });
+      if (emailId) await logEmail(emailId, {
+        emailType: "new_session_available",
+        toEmail: s.email,
+        toName: s.full_name ?? "",
+        extra: { session, unsubscribe_token: s.unsubscribe_token },
       });
     } catch { /* one failed email shouldn't stop the others */ }
   }
@@ -190,13 +197,23 @@ async function cancelSessionAndPromote(sessionId: string, baseUrl: string) {
     // but the participant still needs to be told WHY (session cancelled). Send
     // a dedicated cancellation notice that references the backup placement.
     try {
-      await sendSessionCancelledByAdminEmail({
+      const emailId = await sendSessionCancelledByAdminEmail({
         email: b.email,
         fullName: b.full_name,
         cancelledSession,
         movedToSession,
         bookingId: newBookingId,
         baseUrl,
+      });
+      if (emailId) await logEmail(emailId, {
+        emailType: "cancelled_by_admin",
+        toEmail: b.email,
+        toName: b.full_name,
+        extra: {
+          cancelled_session: cancelledSession,
+          moved_to_session: movedToSession ?? null,
+          booking_id: newBookingId,
+        },
       });
     } catch { /* don't block if email fails */ }
   }
@@ -219,13 +236,23 @@ async function cancelSessionAndPromote(sessionId: string, baseUrl: string) {
     if ((count ?? 0) > 0) continue;
 
     try {
-      await sendSessionCancelledByAdminEmail({
+      const emailId = await sendSessionCancelledByAdminEmail({
         email: b.email,
         fullName: b.full_name,
         cancelledSession,
         movedToSession: null,
         bookingId: null,
         baseUrl,
+      });
+      if (emailId) await logEmail(emailId, {
+        emailType: "cancelled_by_admin",
+        toEmail: b.email,
+        toName: b.full_name,
+        extra: {
+          cancelled_session: cancelledSession,
+          moved_to_session: null,
+          booking_id: null,
+        },
       });
     } catch { /* don't block if email fails */ }
   }

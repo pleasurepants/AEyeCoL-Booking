@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { backfillSession } from "@/lib/assign";
 import { sendAdminBookingEventEmail, sendCancellationConfirmationEmail } from "@/lib/email";
+import { logEmail } from "@/lib/email-log";
 
 export async function POST(req: NextRequest) {
   const { booking_id } = await req.json();
@@ -59,12 +60,18 @@ export async function POST(req: NextRequest) {
       : req.nextUrl.origin;
 
   // 3. Send cancellation confirmation email
-  await sendCancellationConfirmationEmail(
+  const cancelEmailId = await sendCancellationConfirmationEmail(
     booking.email,
     booking.full_name,
     sessionInfo,
     baseUrl
   );
+  if (cancelEmailId) await logEmail(cancelEmailId, {
+    emailType: "cancellation_confirmation",
+    toEmail: booking.email,
+    toName: booking.full_name,
+    extra: { session: sessionInfo },
+  });
 
   try {
     await sendAdminBookingEventEmail({

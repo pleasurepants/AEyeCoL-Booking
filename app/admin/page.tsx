@@ -155,6 +155,7 @@ const statusStyles: Record<string, string> = {
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  const [adminPassword, setAdminPassword] = useState("");
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,6 +185,21 @@ export default function AdminPage() {
   // Busy states for per-booking actions
   const [busyBooking, setBusyBooking] = useState<string | null>(null);
 
+  // Bounced emails
+  interface BouncedEmailLog {
+    id: string;
+    email_type: string;
+    to_email: string;
+    to_name: string;
+    sent_at: string;
+    booking_id: string | null;
+  }
+  const [bouncedEmails, setBouncedEmails] = useState<BouncedEmailLog[]>([]);
+  const [bouncedLoading, setBouncedLoading] = useState(false);
+  const [bouncedChecked, setBouncedChecked] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resendResults, setResendResults] = useState<Record<string, "ok" | "error">>({});
+
   /* ─── auth ─── */
   useEffect(() => {
     async function checkAuth() {
@@ -191,7 +207,7 @@ export default function AdminPage() {
       if (!pw) { setAuthChecking(false); return; }
       try {
         const res = await fetch("/api/admin/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
-        if (res.ok) setAuthed(true);
+        if (res.ok) { setAuthed(true); setAdminPassword(pw); }
       } catch { /* fail */ }
       setAuthChecking(false);
     }
@@ -325,6 +341,40 @@ export default function AdminPage() {
     else { setSuccess(`Email sent to ${emailTarget.email}`); }
     setSendingEmail(false);
     setEmailTarget(null); setEmailSubject(""); setEmailMessage("");
+  }
+
+  async function handleCheckBounced() {
+    setBouncedLoading(true);
+    setBouncedChecked(false);
+    try {
+      const res = await fetch("/api/admin/bounced-emails", {
+        headers: { "x-admin-password": adminPassword },
+      });
+      const body = await res.json();
+      setBouncedEmails(body.bounced ?? []);
+      setBouncedChecked(true);
+      setResendResults({});
+    } catch {
+      setError("Failed to fetch bounced emails.");
+    }
+    setBouncedLoading(false);
+  }
+
+  async function handleResend(logId: string) {
+    setResendingId(logId);
+    try {
+      const res = await fetch("/api/admin/bounced-emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-password": adminPassword },
+        body: JSON.stringify({ log_id: logId }),
+      });
+      const body = await res.json();
+      setResendResults((prev) => ({ ...prev, [logId]: res.ok && body.ok ? "ok" : "error" }));
+      if (!res.ok) setError("Resend failed: " + (body?.error ?? "Unknown"));
+    } catch {
+      setResendResults((prev) => ({ ...prev, [logId]: "error" }));
+    }
+    setResendingId(null);
   }
 
   /* ─── CSV export ─── */
@@ -674,6 +724,80 @@ export default function AdminPage() {
             })}
           </div>
         )}
+
+        {/* Bounced Emails Section */}
+        <div className="mt-10">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Bounced Emails</h2>
+              <p className="text-xs text-gray-500">Automated emails that bounced in the last 24 hours. Resent emails use the same booking@aeyecol.com sender.</p>
+            </div>
+            <button
+              onClick={handleCheckBounced}
+              disabled={bouncedLoading}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {bouncedLoading ? "Checking…" : "Refresh"}
+            </button>
+          </div>
+
+          {bouncedChecked && (
+            bouncedEmails.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 py-8 text-center text-sm text-gray-400">
+                No bounced emails in the last 24 hours
+              </div>
+            ) : (
+              <div className="rounded-xl border border-gray-200 bg-white overflow-x-auto shadow-sm">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-xs text-gray-500">
+                      <th className="px-4 py-2.5 font-medium">Recipient</th>
+                      <th className="px-4 py-2.5 font-medium">Type</th>
+                      <th className="px-4 py-2.5 font-medium">Sent At</th>
+                      <th className="px-4 py-2.5 font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bouncedEmails.map((log) => {
+                      const result = resendResults[log.id];
+                      return (
+                        <tr key={log.id} className="border-b border-gray-50 last:border-0">
+                          <td className="px-4 py-2.5">
+                            <div className="font-medium text-gray-900">{log.to_name || "—"}</div>
+                            <div className="text-xs text-gray-500">{log.to_email}</div>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2.5">
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                              {log.email_type}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-xs text-gray-500">
+                            {formatDateTime(log.sent_at)}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2.5">
+                            {result === "ok" ? (
+                              <span className="text-xs font-medium text-green-600">Sent</span>
+                            ) : result === "error" ? (
+                              <span className="text-xs font-medium text-red-600">Failed</span>
+                            ) : (
+                              <button
+                                onClick={() => handleResend(log.id)}
+                                disabled={resendingId === log.id}
+                                className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                              >
+                                {resendingId === log.id ? "Sending…" : "Resend"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          )}
+        </div>
       </main>
 
       {/* Email modal */}

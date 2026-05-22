@@ -6,6 +6,7 @@ import {
   sendSessionMovedEmail,
   sendCancellationConfirmationEmail,
 } from "@/lib/email";
+import { logEmail } from "@/lib/email-log";
 
 function getBaseUrl(req: NextRequest) {
   return req.headers.get("x-forwarded-proto") && req.headers.get("host")
@@ -56,12 +57,18 @@ export async function POST(req: NextRequest) {
     // never held a confirmed seat.
     if (wasConfirmed) {
       try {
-        await sendCancellationConfirmationEmail(
+        const emailId = await sendCancellationConfirmationEmail(
           booking.email,
           booking.full_name,
           booking.sessions,
           baseUrl
         );
+        if (emailId) await logEmail(emailId, {
+          emailType: "cancellation_confirmation",
+          toEmail: booking.email,
+          toName: booking.full_name,
+          extra: { session: booking.sessions },
+        });
       } catch { /* don't block delete if email fails */ }
       await backfillSession(sessionId, baseUrl);
     }
@@ -104,13 +111,19 @@ export async function POST(req: NextRequest) {
       .eq("email", booking.email)
       .neq("id", booking_id);
 
-    await sendConfirmationEmail(
+    const confirmEmailId = await sendConfirmationEmail(
       booking.email,
       booking.full_name,
       booking.id,
       booking.sessions,
       baseUrl
     );
+    if (confirmEmailId) await logEmail(confirmEmailId, {
+      emailType: "confirmation",
+      bookingId: booking.id,
+      toEmail: booking.email,
+      toName: booking.full_name,
+    });
 
     // Backfill any sessions that lost a confirmed person
     for (const sid of vacatedSessionIds) {
@@ -171,7 +184,7 @@ export async function POST(req: NextRequest) {
       .update({ session_id: target_session_id })
       .eq("id", booking_id);
 
-    await sendSessionMovedEmail(
+    const moveEmailId = await sendSessionMovedEmail(
       booking.email,
       booking.full_name,
       booking.id,
@@ -179,6 +192,13 @@ export async function POST(req: NextRequest) {
       targetSession,
       baseUrl
     );
+    if (moveEmailId) await logEmail(moveEmailId, {
+      emailType: "moved",
+      bookingId: booking.id,
+      toEmail: booking.email,
+      toName: booking.full_name,
+      extra: { old_session_id: oldSessionId, new_session_id: target_session_id },
+    });
 
     if (booking.status === "confirmed") {
       await backfillSession(oldSessionId, baseUrl);

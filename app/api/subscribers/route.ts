@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { sendSubscribedEmail } from "@/lib/email";
+import { logEmail } from "@/lib/email-log";
 
 function getBaseUrl(req: NextRequest) {
   return req.headers.get("x-forwarded-proto") && req.headers.get("host")
@@ -50,7 +51,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await sendSubscribedEmail(email, fullName, unsubscribeToken, getBaseUrl(req));
+    const emailId = await sendSubscribedEmail(email, fullName, unsubscribeToken, getBaseUrl(req));
+    if (emailId) await logEmail(emailId, {
+      emailType: "subscribed",
+      toEmail: email,
+      toName: fullName,
+      extra: { unsubscribe_token: unsubscribeToken },
+    });
   } catch { /* don't block subscribe if email fails */ }
 
   return NextResponse.json({ ok: true, already: !!existing });

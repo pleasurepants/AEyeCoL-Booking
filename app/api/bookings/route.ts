@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { tryConfirm } from "@/lib/assign";
 import { sendNoSpotsEmail } from "@/lib/email";
+import { logEmail } from "@/lib/email-log";
 
 function isSessionActive(session: { date: string; end_time: string } | null | undefined) {
   if (!session) return false;
@@ -88,7 +89,12 @@ export async function POST(req: NextRequest) {
   const result = await tryConfirm(email, baseUrl);
 
   if (!result.confirmedId) {
-    await sendNoSpotsEmail(email, full_name, baseUrl);
+    const noSpotsEmailId = await sendNoSpotsEmail(email, full_name, baseUrl);
+    if (noSpotsEmailId) await logEmail(noSpotsEmailId, {
+      emailType: "no_spots",
+      toEmail: email,
+      toName: full_name,
+    });
     return NextResponse.json({ ok: true, confirmed: false });
   }
 

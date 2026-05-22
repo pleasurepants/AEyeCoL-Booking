@@ -110,15 +110,15 @@ export async function sendConfirmationEmail(
   session: SessionInfo,
   baseUrl: string,
   alternatives?: AlternativeInfo[]
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const cancelUrl = `${baseUrl}/cancel?token=${bookingId}`;
   const dateStr = fmtDate(session.date);
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: `Session Confirmed — ${dateStr}`,
@@ -138,17 +138,18 @@ export async function sendConfirmationEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendApplicationReceivedEmail(
   email: string,
   fullName: string
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: "Application Received — AEyeCoL Study",
@@ -162,6 +163,7 @@ export async function sendApplicationReceivedEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendSessionMovedEmail(
@@ -171,15 +173,15 @@ export async function sendSessionMovedEmail(
   oldSession: SessionInfo,
   newSession: SessionInfo,
   baseUrl: string
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const cancelUrl = `${baseUrl}/cancel?token=${bookingId}`;
   const confirmUrl = `${baseUrl}/confirm-move?token=${bookingId}`;
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: `Session Changed — ${fmtDate(newSession.date)}`,
@@ -205,6 +207,7 @@ export async function sendSessionMovedEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendCustomEmail(
@@ -238,10 +241,10 @@ export async function sendCancellationConfirmationEmail(
   fullName: string,
   session: SessionInfo,
   baseUrl?: string
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const bookAgainButton = baseUrl
     ? `
@@ -249,7 +252,7 @@ export async function sendCancellationConfirmationEmail(
         <a href="${baseUrl}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">Book a New Session</a>`
     : `<p style="color: #374151; line-height: 1.6;">If this was a mistake, please visit our booking page to submit a new application.</p>`;
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: `Booking Cancelled — ${fmtDate(session.date)}`,
@@ -268,6 +271,7 @@ export async function sendCancellationConfirmationEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendMovedToPreferredEmail(
@@ -277,14 +281,14 @@ export async function sendMovedToPreferredEmail(
   oldSession: SessionInfo,
   newSession: SessionInfo,
   baseUrl: string
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const cancelUrl = `${baseUrl}/cancel?token=${bookingId}`;
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: `Good News — Moved to Your Preferred Session`,
@@ -311,6 +315,7 @@ export async function sendMovedToPreferredEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendBackfillConfirmationEmail(
@@ -320,15 +325,15 @@ export async function sendBackfillConfirmationEmail(
   session: SessionInfo,
   baseUrl: string,
   alternatives?: AlternativeInfo[]
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const cancelUrl = `${baseUrl}/cancel?token=${bookingId}`;
   const dateStr = fmtDate(session.date);
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: `Good News — A Spot Has Opened Up!`,
@@ -348,20 +353,21 @@ export async function sendBackfillConfirmationEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendStartingSoonEmail(
   email: string,
   fullName: string,
   session: SessionInfo
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const dateStr = fmtDate(session.date);
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: `Your study session starts soon!`,
@@ -379,6 +385,7 @@ export async function sendStartingSoonEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendSessionCancelledByAdminEmail(params: {
@@ -388,10 +395,10 @@ export async function sendSessionCancelledByAdminEmail(params: {
   movedToSession?: SessionInfo | null;
   bookingId?: string | null;
   baseUrl: string;
-}) {
+}): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const { email, fullName, cancelledSession, movedToSession, bookingId, baseUrl } = params;
   const dateStr = fmtDate(cancelledSession.date);
@@ -412,7 +419,7 @@ export async function sendSessionCancelledByAdminEmail(params: {
           <p style="margin: 0; font-size: 13px; color: #92400e;">We could not automatically place you in one of your backup choices (none were provided, or they were full). Please submit a new booking using the button below.</p>
         </div>`;
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: `Session Cancelled — ${dateStr}`,
@@ -433,6 +440,7 @@ export async function sendSessionCancelledByAdminEmail(params: {
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendSubscribedEmail(
@@ -440,15 +448,15 @@ export async function sendSubscribedEmail(
   fullName: string,
   unsubscribeToken: string,
   baseUrl: string
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const greeting = fullName ? `Hi ${fullName},` : "Hello,";
   const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}`;
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: "You're on the notification list — AEyeCoL Study",
@@ -462,6 +470,7 @@ export async function sendSubscribedEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendNewSessionAvailableEmail(params: {
@@ -470,17 +479,17 @@ export async function sendNewSessionAvailableEmail(params: {
   session: SessionInfo;
   unsubscribeToken: string;
   baseUrl: string;
-}) {
+}): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const { email, fullName, session, unsubscribeToken, baseUrl } = params;
   const greeting = fullName ? `Hi ${fullName},` : "Hello,";
   const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}`;
   const dateStr = fmtDate(session.date);
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: `New Study Session Available — ${dateStr}`,
@@ -500,16 +509,17 @@ export async function sendNewSessionAvailableEmail(params: {
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendNoSpotsEmail(
   email: string,
   fullName: string,
   baseUrl?: string
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
   const subscribeBlock = baseUrl
     ? `
@@ -517,7 +527,7 @@ export async function sendNoSpotsEmail(
         <a href="${baseUrl}/subscribe?email=${encodeURIComponent(email)}&full_name=${encodeURIComponent(fullName)}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500; margin-top: 4px;">Notify Me About New Sessions</a>`
     : "";
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: "Session Availability Update — AEyeCoL Study",
@@ -531,18 +541,19 @@ export async function sendNoSpotsEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendNoSpotsFinalEmail(
   email: string,
   fullName: string,
   baseUrl: string
-) {
+): Promise<string | null> {
   const resend = getResend();
   const sender = from();
-  if (!resend || !sender) return;
+  if (!resend || !sender) return null;
 
-  await resend.emails.send({
+  const { data } = await resend.emails.send({
     from: sender,
     to: email,
     subject: "Session Availability Update — AEyeCoL Study",
@@ -557,6 +568,7 @@ export async function sendNoSpotsFinalEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+  return data?.id ?? null;
 }
 
 export async function sendSlotUnlockedEmail(
@@ -591,4 +603,86 @@ export async function sendSlotUnlockedEmail(
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
   });
+}
+
+const CONFIRMED_NOTICE_DAY_BEFORE = `
+  <div style="margin: 16px 0; padding: 14px 16px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; color: #065f46; font-size: 14px; line-height: 1.5;">
+    <strong>This session is confirmed and will run.</strong> 3 or more participants are registered, so please make sure to attend on time — others are counting on you.
+  </div>`;
+
+export async function sendDayBeforeReminderEmail(
+  email: string,
+  fullName: string,
+  bookingId: string,
+  session: SessionInfo,
+  baseUrl: string,
+  isConfirmed: boolean
+): Promise<string | null> {
+  const resend = getResend();
+  const sender = from();
+  if (!resend || !sender) return null;
+
+  const cancelUrl = `${baseUrl}/cancel?token=${bookingId}`;
+  const dateStr = fmtDate(session.date);
+
+  const { data } = await resend.emails.send({
+    from: sender,
+    to: email,
+    subject: `Reminder: Your study session is in 24 hours`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; color: #1f2937;">
+        <h2 style="color: #111827; margin-bottom: 4px;">Session Reminder</h2>
+        <p style="color: #6b7280; margin-top: 0;">Hi ${fullName}, this is a friendly reminder that your study session starts in <strong>24 hours</strong>.</p>
+        ${isConfirmed ? CONFIRMED_NOTICE_DAY_BEFORE : ""}
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr><td style="padding: 8px 0; color: #6b7280; width: 100px;">Date</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${dateStr}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Time</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${fmtTime(session.start_time)} – ${fmtTime(session.end_time)}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${locationStr(session)}</td></tr>
+        </table>
+        <p style="margin: 24px 0 8px; color: #6b7280; font-size: 14px;">Can no longer make it? Cancel below:</p>
+        <a href="${cancelUrl}" style="display: inline-block; background: #dc2626; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">Cancel Booking</a>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
+        <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
+      </div>`,
+  });
+  return data?.id ?? null;
+}
+
+const CONFIRMED_NOTICE_THREE_HOURS = `
+  <div style="margin: 16px 0; padding: 14px 16px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; color: #065f46; font-size: 14px; line-height: 1.5;">
+    <strong>This session is confirmed and will run.</strong> 3 or more participants are registered, so please make sure to attend on time — others are counting on you.
+  </div>`;
+
+export async function sendThreeHoursReminderEmail(
+  email: string,
+  fullName: string,
+  session: SessionInfo,
+  isConfirmed: boolean
+): Promise<string | null> {
+  const resend = getResend();
+  const sender = from();
+  if (!resend || !sender) return null;
+
+  const dateStr = fmtDate(session.date);
+
+  const { data } = await resend.emails.send({
+    from: sender,
+    to: email,
+    subject: `Your study session starts in 3 hours`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; color: #1f2937;">
+        <h2 style="color: #111827; margin-bottom: 4px;">Starting Soon!</h2>
+        <p style="color: #6b7280; margin-top: 0;">Hi ${fullName}, your study session starts in approximately <strong>3 hours</strong>.</p>
+        ${isConfirmed ? CONFIRMED_NOTICE_THREE_HOURS : ""}
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr><td style="padding: 8px 0; color: #6b7280; width: 100px;">Date</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${dateStr}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Time</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${fmtTime(session.start_time)} – ${fmtTime(session.end_time)}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${locationStr(session)}</td></tr>
+        </table>
+        <p style="color: #374151; line-height: 1.6;">Please make sure to arrive on time. We look forward to seeing you!</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
+        <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
+      </div>`,
+  });
+  return data?.id ?? null;
 }

@@ -4,6 +4,7 @@ import {
   sendSessionMovedEmail,
   sendSessionCancelledByAdminEmail,
 } from "./email";
+import { logEmail } from "./email-log";
 
 const MIN_PARTICIPANTS = 3;
 
@@ -144,7 +145,7 @@ async function processCancelledSession(
         .eq("id", booking.id);
 
       try {
-        await sendSessionMovedEmail(
+        const emailId = await sendSessionMovedEmail(
           booking.email,
           booking.full_name,
           booking.id,
@@ -164,6 +165,13 @@ async function processCancelledSession(
           },
           baseUrl
         );
+        if (emailId) await logEmail(emailId, {
+          emailType: "moved",
+          bookingId: booking.id,
+          toEmail: booking.email,
+          toName: booking.full_name,
+          extra: { old_session_id: cancelledSession.id, new_session_id: target.id },
+        });
       } catch { /* don't block on email errors */ }
 
       moved++;
@@ -172,7 +180,7 @@ async function processCancelledSession(
       await supabase.from("bookings").delete().eq("id", booking.id);
 
       try {
-        await sendSessionCancelledByAdminEmail({
+        const emailId = await sendSessionCancelledByAdminEmail({
           email: booking.email,
           fullName: booking.full_name,
           cancelledSession: {
@@ -185,6 +193,12 @@ async function processCancelledSession(
           movedToSession: null,
           bookingId: null,
           baseUrl,
+        });
+        if (emailId) await logEmail(emailId, {
+          emailType: "cancelled_by_admin",
+          toEmail: booking.email,
+          toName: booking.full_name,
+          extra: { cancelled_session: cancelledSession, moved_to_session: null, booking_id: null },
         });
       } catch { /* don't block on email errors */ }
 
@@ -221,7 +235,7 @@ async function processCancelledSession(
       if ((count ?? 0) > 0) continue;
 
       try {
-        await sendSessionCancelledByAdminEmail({
+        const emailId = await sendSessionCancelledByAdminEmail({
           email: b.email,
           fullName: b.full_name,
           cancelledSession: {
@@ -234,6 +248,12 @@ async function processCancelledSession(
           movedToSession: null,
           bookingId: null,
           baseUrl,
+        });
+        if (emailId) await logEmail(emailId, {
+          emailType: "cancelled_by_admin",
+          toEmail: b.email,
+          toName: b.full_name,
+          extra: { cancelled_session: cancelledSession, moved_to_session: null, booking_id: null },
         });
       } catch { /* don't block on email errors */ }
     }
