@@ -308,13 +308,16 @@ async function handleRawResend(resendEmailId: string): Promise<NextResponse> {
 
   const toAddresses = Array.isArray(email.to) ? email.to : [email.to ?? ""];
 
+  const html = email.html ?? null;
+  const text = email.text ?? null;
+  const body = html ? { html } : { text: text ?? "(no content)" };
+
   try {
     const { error: sendError } = await resend.emails.send({
       from: email.from ?? "booking@aeyecol.com",
       to: toAddresses,
       subject: email.subject ?? "(no subject)",
-      html: email.html ?? undefined,
-      text: email.text ?? undefined,
+      ...body,
     });
     if (sendError) throw new Error(sendError.message);
     return NextResponse.json({ ok: true });
