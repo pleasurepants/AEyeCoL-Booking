@@ -361,19 +361,25 @@ export default function AdminPage() {
     setBouncedLoading(false);
   }
 
-  async function handleResend(logId: string) {
-    setResendingId(logId);
+  async function handleResend(entry: BouncedEmailEntry) {
+    const key = entry.resend_email_id;
+    setResendingId(key);
     try {
+      // If we have a log entry, use the typed resend path (preserves full template).
+      // Otherwise fall back to raw SMTP resend via admin Gmail account.
+      const payload = entry.log_id
+        ? { log_id: entry.log_id }
+        : { resend_email_id: entry.resend_email_id };
       const res = await fetch("/api/admin/bounced-emails", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-password": adminPassword },
-        body: JSON.stringify({ log_id: logId }),
+        body: JSON.stringify(payload),
       });
       const body = await res.json();
-      setResendResults((prev) => ({ ...prev, [logId]: res.ok && body.ok ? "ok" : "error" }));
+      setResendResults((prev) => ({ ...prev, [key]: res.ok && body.ok ? "ok" : "error" }));
       if (!res.ok) setError("Resend failed: " + (body?.error ?? "Unknown"));
     } catch {
-      setResendResults((prev) => ({ ...prev, [logId]: "error" }));
+      setResendResults((prev) => ({ ...prev, [key]: "error" }));
     }
     setResendingId(null);
   }
@@ -761,7 +767,7 @@ export default function AdminPage() {
                   <tbody>
                     {bouncedEmails.map((entry) => {
                       const key = entry.resend_email_id;
-                      const result = entry.log_id ? resendResults[entry.log_id] : undefined;
+                      const result = resendResults[key];
                       return (
                         <tr key={key} className="border-b border-gray-50 last:border-0">
                           <td className="px-4 py-2.5">
@@ -777,19 +783,17 @@ export default function AdminPage() {
                             {formatDateTime(entry.sent_at)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-2.5">
-                            {!entry.log_id ? (
-                              <span className="text-xs text-gray-400">—</span>
-                            ) : result === "ok" ? (
+                            {result === "ok" ? (
                               <span className="text-xs font-medium text-green-600">Sent</span>
                             ) : result === "error" ? (
                               <span className="text-xs font-medium text-red-600">Failed</span>
                             ) : (
                               <button
-                                onClick={() => handleResend(entry.log_id!)}
-                                disabled={resendingId === entry.log_id}
+                                onClick={() => handleResend(entry)}
+                                disabled={resendingId === key}
                                 className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                               >
-                                {resendingId === entry.log_id ? "Sending…" : "Resend"}
+                                {resendingId === key ? "Sending…" : "Resend"}
                               </button>
                             )}
                           </td>

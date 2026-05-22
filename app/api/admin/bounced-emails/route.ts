@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   sendConfirmationEmail,
@@ -79,7 +80,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { log_id } = await req.json();
+  const body = await req.json();
+
+  // Raw resend: fetch original email from Resend and forward via Gmail SMTP.
+  if (body.resend_email_id && !body.log_id) {
+    return handleRawResend(body.resend_email_id);
+  }
+
+  const { log_id } = body;
   if (!log_id) {
     return NextResponse.json({ error: "Missing log_id" }, { status: 400 });
   }
@@ -289,5 +297,42 @@ async function resendByType(log: EmailLog, baseUrl: string): Promise<void> {
 
     default:
       throw new Error(`Unknown email_type: ${email_type}`);
+  }
+}
+
+async function handleRawResend(resendEmailId: string): Promise<NextResponse> {
+  const smtpUser = process.env.ADMIN_SMTP_USER;
+  const smtpPass = process.env.ADMIN_SMTP_PASS;
+  if (!smtpUser || !smtpPass) {
+    return NextResponse.json({ error: "ADMIN_SMTP_USER / ADMIN_SMTP_PASS not configured" }, { status: 500 });
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const { data: email, error } = await resend.emails.get(resendEmailId);
+  if (error || !email) {
+    return NextResponse.json({ error: "Could not fetch email from Resend" }, { status: 500 });
+  }
+
+  const toAddresses = Array.isArray(email.to) ? email.to : [email.to];
+
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
+  try {
+    await transporter.sendMail({
+      from: smtpUser,
+      to: toAddresses,
+      subject: email.subject ?? "(no subject)",
+      html: email.html ?? undefined,
+      text: email.text ?? undefined,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("SMTP resend failed:", e);
+    return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
