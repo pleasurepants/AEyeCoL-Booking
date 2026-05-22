@@ -5,6 +5,7 @@ import { tryConfirm } from "@/lib/assign";
 import {
   sendSessionCancelledByAdminEmail,
   sendNewSessionAvailableEmail,
+  sendSlotUnlockedEmail,
 } from "@/lib/email";
 import { logEmail } from "@/lib/email-log";
 
@@ -50,14 +51,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const created = Array.isArray(data) ? data[0] : null;
+  const baseUrl = getBaseUrl(req);
+
   // Notify subscribers (best-effort; never block session creation).
   try {
-    const created = Array.isArray(data) ? data[0] : null;
-    if (created) {
-      await notifySubscribersOfNewSession(created, getBaseUrl(req));
-    }
+    if (created) await notifySubscribersOfNewSession(created, baseUrl);
   } catch (e) {
     console.error("Failed to notify subscribers:", e);
+  }
+
+  // Notify pending users who already have bookings on this date.
+  try {
+    if (created) await notifyPendingUsersForDate(created, baseUrl);
+  } catch (e) {
+    console.error("Failed to notify pending users:", e);
   }
 
   return NextResponse.json({ data });
@@ -277,4 +285,45 @@ export async function DELETE(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+async function notifyPendingUsersForDate(
+  session: { id: string; date: string; start_time: string; end_time: string; location: string; room: string | null },
+  baseUrl: string
+) {
+  // Find all sessions on the same date (excluding the newly created one).
+  const { data: sameDaySessions } = await supabaseAdmin
+    .from("sessions")
+    .select("id")
+    .eq("date", session.date)
+    .neq("id", session.id);
+
+  if (!sameDaySessions?.length) return;
+
+  const sameDayIds = sameDaySessions.map((s) => s.id);
+
+  // Find unique pending users on those sessions who aren't confirmed anywhere.
+  const { data: pendingRows } = await supabaseAdmin
+    .from("bookings")
+    .select("email, full_name")
+    .in("session_id", sameDayIds)
+    .eq("status", "pending");
+
+  if (!pendingRows?.length) return;
+
+  const { data: confirmedRows } = await supabaseAdmin
+    .from("bookings")
+    .select("email")
+    .eq("status", "confirmed");
+  const confirmedSet = new Set((confirmedRows ?? []).map((b) => b.email));
+
+  const seen = new Set<string>();
+  for (const b of pendingRows) {
+    if (seen.has(b.email)) continue;
+    seen.add(b.email);
+    if (confirmedSet.has(b.email)) continue;
+    try {
+      await sendSlotUnlockedEmail(b.email, b.full_name, session, baseUrl);
+    } catch { /* non-fatal */ }
+  }
 }
