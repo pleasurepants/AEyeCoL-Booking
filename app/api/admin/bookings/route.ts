@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
-import { backfillSession } from "@/lib/assign";
+import { backfillSession, notifyPendingIfSlotUnlocked } from "@/lib/assign";
 import {
   sendConfirmationEmail,
   sendSessionMovedEmail,
@@ -116,6 +116,8 @@ export async function POST(req: NextRequest) {
     for (const sid of vacatedSessionIds) {
       await backfillSession(sid, baseUrl);
     }
+
+    try { await notifyPendingIfSlotUnlocked(booking.session_id, baseUrl); } catch { /* non-fatal */ }
 
     return NextResponse.json({ ok: true });
   }

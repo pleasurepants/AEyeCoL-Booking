@@ -7,6 +7,7 @@ import {
   sendStartingSoonEmail,
   sendNoSpotsFinalEmail,
   sendAdminBookingEventEmail,
+  sendSlotUnlockedEmail,
   AlternativeInfo,
 } from "./email";
 
@@ -206,6 +207,9 @@ export async function tryConfirm(
           }
         } catch { /* don't break main flow */ }
 
+        // Notify pending users if confirming this booking filled the session and unlocked another slot.
+        try { await notifyPendingIfSlotUnlocked(booking.session_id, baseUrl); } catch { /* non-fatal */ }
+
         return { confirmedId: booking.id, vacatedSessionId };
       }
     }
@@ -258,6 +262,9 @@ export async function tryConfirm(
           await sendStartingSoonEmail(email, booking.full_name, booking.sessions);
         }
       } catch { /* don't break main flow */ }
+
+      // Notify pending users if this confirmation filled the session and unlocked another slot.
+      try { await notifyPendingIfSlotUnlocked(booking.session_id, baseUrl); } catch { /* non-fatal */ }
 
       return { confirmedId: booking.id, vacatedSessionId: null };
     }
@@ -407,4 +414,85 @@ export async function runNightlyAssignment(
   }
 
   return { confirmed, no_spots: noSpots };
+}
+
+/**
+ * When session A fills up, check whether there is another session on the same
+ * date that is not yet full (i.e. it just became the "visible" slot on the
+ * booking page). If so, notify pending users who haven't already chosen it.
+ */
+export async function notifyPendingIfSlotUnlocked(
+  filledSessionId: string,
+  baseUrl: string
+): Promise<void> {
+  const { data: filled } = await supabase
+    .from("sessions")
+    .select("date, max_participants")
+    .eq("id", filledSessionId)
+    .single();
+  if (!filled) return;
+
+  const { count: filledCount } = await supabase
+    .from("bookings")
+    .select("*", { count: "exact", head: true })
+    .eq("session_id", filledSessionId)
+    .eq("status", "confirmed");
+  if ((filledCount ?? 0) < filled.max_participants) return;
+
+  // Find other upcoming sessions on the same date.
+  const { data: sameDaySessions } = await supabase
+    .from("sessions")
+    .select("id, date, start_time, end_time, location, room, max_participants")
+    .eq("date", filled.date)
+    .eq("status", "upcoming")
+    .neq("id", filledSessionId);
+  if (!sameDaySessions?.length) return;
+
+  // Keep only sessions that still have capacity.
+  const available: typeof sameDaySessions = [];
+  for (const s of sameDaySessions) {
+    const { count } = await supabase
+      .from("bookings")
+      .select("*", { count: "exact", head: true })
+      .eq("session_id", s.id)
+      .eq("status", "confirmed");
+    if ((count ?? 0) < s.max_participants) available.push(s);
+  }
+  if (!available.length) return;
+
+  // Pick the newly visible slot: afternoon preferred, then earliest.
+  const newSlot =
+    available.find((s) => s.start_time >= "12:00") ??
+    available.sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
+
+  // Emails that already have this specific session as a preference.
+  const { data: alreadyChosen } = await supabase
+    .from("bookings")
+    .select("email")
+    .eq("session_id", newSlot.id);
+  const alreadyChosenSet = new Set((alreadyChosen ?? []).map((b) => b.email));
+
+  // Emails that are already confirmed somewhere — they don't need this.
+  const { data: confirmedRows } = await supabase
+    .from("bookings")
+    .select("email")
+    .eq("status", "confirmed");
+  const confirmedSet = new Set((confirmedRows ?? []).map((b) => b.email));
+
+  // Pending users who could benefit from knowing about the new slot.
+  const { data: pendingRows } = await supabase
+    .from("bookings")
+    .select("email, full_name")
+    .eq("status", "pending");
+
+  const seen = new Set<string>();
+  for (const b of pendingRows ?? []) {
+    if (seen.has(b.email)) continue;
+    seen.add(b.email);
+    if (alreadyChosenSet.has(b.email)) continue;
+    if (confirmedSet.has(b.email)) continue;
+    try {
+      await sendSlotUnlockedEmail(b.email, b.full_name, newSlot, baseUrl);
+    } catch { /* non-fatal */ }
+  }
 }

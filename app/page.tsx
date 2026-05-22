@@ -65,8 +65,7 @@ function isFullFor(session: Session, glasses: Glasses) {
   return false;
 }
 
-function getVisibleSessions(sessions: Session[], _glasses: Glasses): Session[] {
-  void _glasses;
+function getVisibleSessions(sessions: Session[], glasses: Glasses): Session[] {
   const byDate = new Map<string, Session[]>();
   for (const s of sessions) {
     if (!byDate.has(s.date)) byDate.set(s.date, []);
@@ -74,11 +73,17 @@ function getVisibleSessions(sessions: Session[], _glasses: Glasses): Session[] {
   }
   const result: Session[] = [];
   for (const daySessions of byDate.values()) {
-    // daySessions arrives sorted by start_time ascending (set in fetchSessions).
-    // Prefer the first afternoon session (start_time >= 12:00); otherwise the
-    // second slot of the day; otherwise whatever single slot exists.
+    // daySessions sorted by start_time ascending.
+    // Priority: afternoon slot (>= 12:00) first, then second slot, then first slot.
     const afternoon = daySessions.find((s) => s.start_time >= "12:00");
-    const pick = afternoon ?? daySessions[1] ?? daySessions[0] ?? null;
+    const prioritized = afternoon
+      ? [afternoon, ...daySessions.filter((s) => s !== afternoon)]
+      : daySessions.length >= 2
+      ? [daySessions[1], daySessions[0], ...daySessions.slice(2)]
+      : [...daySessions];
+
+    // Show the first slot that isn't full for this user; fall back to primary if all are full.
+    const pick = prioritized.find((s) => !isFullFor(s, glasses)) ?? prioritized[0] ?? null;
     if (pick) result.push(pick);
   }
   return result;
