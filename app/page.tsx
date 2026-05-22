@@ -82,9 +82,16 @@ function getVisibleSessions(sessions: Session[], glasses: Glasses): Session[] {
       ? [daySessions[1], daySessions[0], ...daySessions.slice(2)]
       : [...daySessions];
 
-    // Show the first slot that isn't full for this user; fall back to primary if all are full.
-    const pick = prioritized.find((s) => !isFullFor(s, glasses)) ?? prioritized[0] ?? null;
-    if (pick) result.push(pick);
+    // Always show the primary slot.
+    // If the primary is full, also show the next available slot (both stay visible).
+    // Fall back to primary only if everything is full.
+    const primary = prioritized[0] ?? null;
+    if (!primary) continue;
+    result.push(primary);
+    if (isFullFor(primary, glasses)) {
+      const next = prioritized.slice(1).find((s) => !isFullFor(s, glasses));
+      if (next) result.push(next);
+    }
   }
   return result;
 }
