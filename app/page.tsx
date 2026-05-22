@@ -82,16 +82,17 @@ function getVisibleSessions(sessions: Session[], glasses: Glasses): Session[] {
       ? [daySessions[1], daySessions[0], ...daySessions.slice(2)]
       : [...daySessions];
 
-    // Always show the primary slot.
-    // If the primary is full, also show the next available slot (both stay visible).
-    // Fall back to primary only if everything is full.
-    const primary = prioritized[0] ?? null;
-    if (!primary) continue;
-    result.push(primary);
-    if (isFullFor(primary, glasses)) {
-      const next = prioritized.slice(1).find((s) => !isFullFor(s, glasses));
-      if (next) result.push(next);
+    // Show 2 sessions by default. Each time a shown session is full,
+    // reveal one more — repeat until at least 2 non-full slots are visible
+    // or all sessions for the day are shown.
+    let toShow = Math.min(2, prioritized.length);
+    let prev = -1;
+    while (toShow !== prev && toShow < prioritized.length) {
+      prev = toShow;
+      const fullCount = prioritized.slice(0, toShow).filter((s) => isFullFor(s, glasses)).length;
+      toShow = Math.min(fullCount + 2, prioritized.length);
     }
+    result.push(...prioritized.slice(0, toShow));
   }
   return result;
 }
