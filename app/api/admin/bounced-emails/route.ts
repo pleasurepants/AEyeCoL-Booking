@@ -29,30 +29,47 @@ export async function GET(req: NextRequest) {
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const { data: logs } = await supabaseAdmin
-    .from("email_logs")
-    .select("*")
-    .gte("sent_at", since)
-    .order("sent_at", { ascending: false });
-
-  if (!logs?.length) {
+  // Pull the 100 most-recent outbound emails directly from Resend and filter
+  // for bounces in the last 24 h. This works even for emails sent before the
+  // email_logs table existed.
+  const { data: emailList } = await resend.emails.list({ limit: 100 });
+  if (!emailList?.data?.length) {
     return NextResponse.json({ bounced: [] });
   }
 
-  const bounced: unknown[] = [];
+  const recentBounced = emailList.data.filter(
+    (e) => e.last_event === "bounced" && new Date(e.created_at) >= since
+  );
 
-  for (const log of logs) {
-    try {
-      const { data: emailData } = await resend.emails.get(log.resend_email_id);
-      if (emailData?.last_event === "bounced") {
-        bounced.push({ ...log, resend_last_event: emailData.last_event });
-      }
-    } catch {
-      // skip — ID may be expired or not found
-    }
+  if (!recentBounced.length) {
+    return NextResponse.json({ bounced: [] });
   }
+
+  // Cross-reference with email_logs so we can surface the log_id (required
+  // to resend) and a human-readable email_type label.
+  const resendIds = recentBounced.map((e) => e.id);
+  const { data: logs } = await supabaseAdmin
+    .from("email_logs")
+    .select("id, resend_email_id, email_type, to_name")
+    .in("resend_email_id", resendIds);
+
+  const logByResendId = new Map((logs ?? []).map((l) => [l.resend_email_id, l]));
+
+  const bounced = recentBounced.map((e) => {
+    const log = logByResendId.get(e.id);
+    const toEmail = Array.isArray(e.to) ? e.to[0] : (e.to ?? "");
+    return {
+      resend_email_id: e.id,
+      to_email: toEmail,
+      to_name: log?.to_name ?? null,
+      subject: e.subject,
+      sent_at: e.created_at,
+      email_type: log?.email_type ?? null,
+      log_id: log?.id ?? null,
+    };
+  });
 
   return NextResponse.json({ bounced });
 }

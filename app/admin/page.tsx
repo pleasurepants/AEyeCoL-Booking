@@ -186,15 +186,16 @@ export default function AdminPage() {
   const [busyBooking, setBusyBooking] = useState<string | null>(null);
 
   // Bounced emails
-  interface BouncedEmailLog {
-    id: string;
-    email_type: string;
+  interface BouncedEmailEntry {
+    resend_email_id: string;
     to_email: string;
-    to_name: string;
+    to_name: string | null;
+    subject: string;
     sent_at: string;
-    booking_id: string | null;
+    email_type: string | null;
+    log_id: string | null; // null = no log entry, resend not possible
   }
-  const [bouncedEmails, setBouncedEmails] = useState<BouncedEmailLog[]>([]);
+  const [bouncedEmails, setBouncedEmails] = useState<BouncedEmailEntry[]>([]);
   const [bouncedLoading, setBouncedLoading] = useState(false);
   const [bouncedChecked, setBouncedChecked] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -758,34 +759,37 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {bouncedEmails.map((log) => {
-                      const result = resendResults[log.id];
+                    {bouncedEmails.map((entry) => {
+                      const key = entry.resend_email_id;
+                      const result = entry.log_id ? resendResults[entry.log_id] : undefined;
                       return (
-                        <tr key={log.id} className="border-b border-gray-50 last:border-0">
+                        <tr key={key} className="border-b border-gray-50 last:border-0">
                           <td className="px-4 py-2.5">
-                            <div className="font-medium text-gray-900">{log.to_name || "—"}</div>
-                            <div className="text-xs text-gray-500">{log.to_email}</div>
+                            <div className="font-medium text-gray-900">{entry.to_name || "—"}</div>
+                            <div className="text-xs text-gray-500">{entry.to_email}</div>
                           </td>
                           <td className="whitespace-nowrap px-4 py-2.5">
                             <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                              {log.email_type}
+                              {entry.email_type ?? entry.subject}
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-4 py-2.5 text-xs text-gray-500">
-                            {formatDateTime(log.sent_at)}
+                            {formatDateTime(entry.sent_at)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-2.5">
-                            {result === "ok" ? (
+                            {!entry.log_id ? (
+                              <span className="text-xs text-gray-400">—</span>
+                            ) : result === "ok" ? (
                               <span className="text-xs font-medium text-green-600">Sent</span>
                             ) : result === "error" ? (
                               <span className="text-xs font-medium text-red-600">Failed</span>
                             ) : (
                               <button
-                                onClick={() => handleResend(log.id)}
-                                disabled={resendingId === log.id}
+                                onClick={() => handleResend(entry.log_id!)}
+                                disabled={resendingId === entry.log_id}
                                 className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                               >
-                                {resendingId === log.id ? "Sending…" : "Resend"}
+                                {resendingId === entry.log_id ? "Sending…" : "Resend"}
                               </button>
                             )}
                           </td>
