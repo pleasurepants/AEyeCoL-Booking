@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Log every automated outbound email with its Resend ID, then let the admin view bounced emails from the last 24 h and manually resend them using `mingcong.ding@tum.de` as the sender.
+**Goal:** Log every automated outbound email with its Resend ID, then let the admin view bounced emails from the last 24 h and manually resend them (using the existing `booking@aeyecol.com` sender).
 
 **Architecture:** A new `email_logs` Supabase table stores the Resend email ID, type, and enough context to reconstruct each email. A new API route queries Resend for bounce status on refresh and handles resend logic. The admin page gains a collapsible "Bounced Emails" section.
 
@@ -18,7 +18,7 @@
 |---|---|---|
 | Supabase Dashboard | SQL | Create `email_logs` table |
 | `lib/email-log.ts` | Create | `logEmail()` helper — writes to `email_logs` |
-| `lib/email.ts` | Modify | All `send*` functions return `Promise<string \| null>`, accept `fromOverride?`, add `sendDayBeforeReminderEmail` + `sendThreeHoursReminderEmail` |
+| `lib/email.ts` | Modify | All `send*` functions return `Promise<string \| null>`, add `sendDayBeforeReminderEmail` + `sendThreeHoursReminderEmail` |
 | `lib/assign.ts` | Modify | Log all email sends |
 | `lib/cleanup.ts` | Modify | Log all email sends |
 | `app/api/bookings/route.ts` | Modify | Log `sendNoSpotsEmail` |
@@ -108,31 +108,28 @@ git commit -m "feat: add email_logs table and logEmail helper"
 
 ---
 
-## Task 3: Modify `lib/email.ts` — return IDs, add `fromOverride`, add reminder functions
+## Task 3: Modify `lib/email.ts` — return IDs, add reminder functions
 
 **Files:**
 - Modify: `lib/email.ts`
 
-Every `send*` function that is tracked needs two changes:
-1. Add optional `fromOverride?: string` as last parameter
-2. Change return type to `Promise<string | null>` and return the Resend email ID
+Every `send*` function that is tracked needs one change: return `Promise<string | null>` (the Resend email ID) instead of `Promise<void>`.
 
 Also add two new functions (`sendDayBeforeReminderEmail`, `sendThreeHoursReminderEmail`) so reminder routes can use them.
 
-- [ ] **Step 1: Update `getResend` and `from` are already helpers — no change needed. Update the functions listed below.**
+- [ ] **Step 1: Update the functions listed below.**
 
-For each function below, apply the same pattern:
-- Signature: add `fromOverride?: string` as last param
-- Inside: change `const sender = from();` to `const sender = fromOverride ?? from();`
-- Change `if (!resend || !sender) return;` to `if (!resend || !sender) return null;`
+For each function, apply the same pattern:
+- Change `if (!resend || !sender) return;` → `if (!resend || !sender) return null;`
 - Capture send result: `const { data } = await resend.emails.send({...});`
 - Return: `return data?.id ?? null;`
+- Change return type annotation to `Promise<string | null>`
 
-**Functions to update** (apply pattern to each, only showing signature + return type change for brevity — the HTML bodies are unchanged):
+**Functions to update** (HTML bodies are unchanged — only the return type and final `return` line change):
 
-`sendAdminBookingEventEmail` — keep return `void`, no logging needed, no fromOverride needed. Skip this one.
+`sendAdminBookingEventEmail` — keep return `void`, no logging needed. Skip this one.
 
-`sendConfirmationEmail`:
+`sendConfirmationEmail` (example showing the full pattern):
 ```typescript
 export async function sendConfirmationEmail(
   email: string,
@@ -140,19 +137,18 @@ export async function sendConfirmationEmail(
   bookingId: string,
   session: SessionInfo,
   baseUrl: string,
-  alternatives?: AlternativeInfo[],
-  fromOverride?: string
+  alternatives?: AlternativeInfo[]
 ): Promise<string | null> {
   const resend = getResend();
-  const sender = fromOverride ?? from();
+  const sender = from();
   if (!resend || !sender) return null;
-  // ... (HTML body unchanged) ...
+  // ... (cancelUrl, dateStr, HTML body — all unchanged) ...
   const { data } = await resend.emails.send({ from: sender, to: email, subject: `Session Confirmed — ${dateStr}`, html: `...` });
   return data?.id ?? null;
 }
 ```
 
-Apply the same pattern to all of the following (add `fromOverride?: string` last param, return `Promise<string | null>`, capture `data`, return `data?.id ?? null`):
+Apply the same pattern to:
 - `sendApplicationReceivedEmail`
 - `sendSessionMovedEmail`
 - `sendCancellationConfirmationEmail`
@@ -165,7 +161,7 @@ Apply the same pattern to all of the following (add `fromOverride?: string` last
 - `sendNoSpotsEmail`
 - `sendNoSpotsFinalEmail`
 
-`sendCustomEmail` — no fromOverride, keep return `void` (not tracked). Skip.
+`sendCustomEmail` — keep return `void` (not tracked). Skip.
 
 - [ ] **Step 2: Add `sendDayBeforeReminderEmail` to `lib/email.ts`**
 
@@ -183,11 +179,10 @@ export async function sendDayBeforeReminderEmail(
   bookingId: string,
   session: SessionInfo,
   baseUrl: string,
-  isConfirmed: boolean,
-  fromOverride?: string
+  isConfirmed: boolean
 ): Promise<string | null> {
   const resend = getResend();
-  const sender = fromOverride ?? from();
+  const sender = from();
   if (!resend || !sender) return null;
 
   const cancelUrl = `${baseUrl}/cancel?token=${bookingId}`;
@@ -229,11 +224,10 @@ export async function sendThreeHoursReminderEmail(
   email: string,
   fullName: string,
   session: SessionInfo,
-  isConfirmed: boolean,
-  fromOverride?: string
+  isConfirmed: boolean
 ): Promise<string | null> {
   const resend = getResend();
-  const sender = fromOverride ?? from();
+  const sender = from();
   if (!resend || !sender) return null;
 
   const dateStr = fmtDate(session.date);
@@ -265,7 +259,7 @@ export async function sendThreeHoursReminderEmail(
 
 ```bash
 git add lib/email.ts
-git commit -m "feat: email functions return Resend ID, accept fromOverride, add reminder helpers"
+git commit -m "feat: email functions return Resend ID, add reminder helpers"
 ```
 
 ---
@@ -1125,7 +1119,7 @@ git commit -m "feat: refactor reminder routes to use shared email helpers + log"
 
 This route has two handlers:
 - `GET` — queries `email_logs` for last 24 h, checks each via Resend, returns bounced ones
-- `POST` — resends a specific log entry using `fromOverride`
+- `POST` — resends a specific log entry using the same `booking@aeyecol.com` sender
 
 - [ ] **Step 1: Create the route file**
 
@@ -1210,10 +1204,9 @@ export async function POST(req: NextRequest) {
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  const fromOverride = process.env.RESEND_FROM_OVERRIDE;
 
   try {
-    await resendByType(log, baseUrl, fromOverride);
+    await resendByType(log, baseUrl);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("Resend failed:", e);
@@ -1230,7 +1223,7 @@ type EmailLog = {
   extra: Record<string, unknown> | null;
 };
 
-async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: string): Promise<void> {
+async function resendByType(log: EmailLog, baseUrl: string): Promise<void> {
   const { email_type, booking_id, to_email, to_name, extra } = log;
 
   switch (email_type) {
@@ -1260,9 +1253,9 @@ async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: strin
         }).filter((x): x is AlternativeInfo => x !== null);
       }
       if (email_type === "backfill_confirmation") {
-        await sendBackfillConfirmationEmail(to_email, to_name, booking_id, session, baseUrl, alternatives, fromOverride);
+        await sendBackfillConfirmationEmail(to_email, to_name, booking_id, session, baseUrl, alternatives);
       } else {
-        await sendConfirmationEmail(to_email, to_name, booking_id, session, baseUrl, alternatives, fromOverride);
+        await sendConfirmationEmail(to_email, to_name, booking_id, session, baseUrl, alternatives);
       }
       break;
     }
@@ -1284,7 +1277,7 @@ async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: strin
         .eq("id", oldSessionId)
         .single();
       if (!oldSession) throw new Error("Old session not found");
-      await sendMovedToPreferredEmail(to_email, to_name, booking_id, oldSession, newSession, baseUrl, fromOverride);
+      await sendMovedToPreferredEmail(to_email, to_name, booking_id, oldSession, newSession, baseUrl);
       break;
     }
 
@@ -1297,7 +1290,7 @@ async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: strin
         .single();
       if (!booking) throw new Error("Booking not found");
       const session = (booking as unknown as { sessions: { date: string; start_time: string; end_time: string; location: string; room: string | null } }).sessions;
-      await sendStartingSoonEmail(to_email, to_name, session, fromOverride);
+      await sendStartingSoonEmail(to_email, to_name, session);
       break;
     }
 
@@ -1316,7 +1309,7 @@ async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: strin
         .select("*", { count: "exact", head: true })
         .eq("session_id", sessionId)
         .eq("status", "confirmed");
-      await sendDayBeforeReminderEmail(to_email, to_name, booking_id, session, baseUrl, (count ?? 0) >= 3, fromOverride);
+      await sendDayBeforeReminderEmail(to_email, to_name, booking_id, session, baseUrl, (count ?? 0) >= 3);
       break;
     }
 
@@ -1335,16 +1328,16 @@ async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: strin
         .select("*", { count: "exact", head: true })
         .eq("session_id", sessionId)
         .eq("status", "confirmed");
-      await sendThreeHoursReminderEmail(to_email, to_name, session, (count ?? 0) >= 3, fromOverride);
+      await sendThreeHoursReminderEmail(to_email, to_name, session, (count ?? 0) >= 3);
       break;
     }
 
     case "no_spots":
-      await sendNoSpotsEmail(to_email, to_name, baseUrl, fromOverride);
+      await sendNoSpotsEmail(to_email, to_name, baseUrl);
       break;
 
     case "no_spots_final":
-      await sendNoSpotsFinalEmail(to_email, to_name, baseUrl, fromOverride);
+      await sendNoSpotsFinalEmail(to_email, to_name, baseUrl);
       break;
 
     case "moved": {
@@ -1363,14 +1356,14 @@ async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: strin
         .eq("id", newSessionId)
         .single();
       if (!oldSession || !newSession) throw new Error("Session(s) not found");
-      await sendSessionMovedEmail(to_email, to_name, booking_id, oldSession, newSession, baseUrl, fromOverride);
+      await sendSessionMovedEmail(to_email, to_name, booking_id, oldSession, newSession, baseUrl);
       break;
     }
 
     case "cancellation_confirmation": {
       const session = extra?.session as { date: string; start_time: string; end_time: string; location: string; room: string | null } | null;
       if (!session) throw new Error("Missing extra.session for cancellation_confirmation");
-      await sendCancellationConfirmationEmail(to_email, to_name, session, baseUrl, fromOverride);
+      await sendCancellationConfirmationEmail(to_email, to_name, session, baseUrl);
       break;
     }
 
@@ -1386,7 +1379,6 @@ async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: strin
         movedToSession,
         bookingId: newBookingId,
         baseUrl,
-        fromOverride,
       });
       break;
     }
@@ -1395,7 +1387,7 @@ async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: strin
       const unsubscribeToken = (extra?.unsubscribe_token as string) ?? null;
       const storedBaseUrl = (extra?.base_url as string) ?? baseUrl;
       if (!unsubscribeToken) throw new Error("Missing extra.unsubscribe_token");
-      await sendSubscribedEmail(to_email, to_name, unsubscribeToken, storedBaseUrl, fromOverride);
+      await sendSubscribedEmail(to_email, to_name, unsubscribeToken, storedBaseUrl);
       break;
     }
 
@@ -1403,7 +1395,7 @@ async function resendByType(log: EmailLog, baseUrl: string, fromOverride?: strin
       const session = extra?.session as { date: string; start_time: string; end_time: string; location: string; room: string | null } | null;
       const unsubscribeToken = (extra?.unsubscribe_token as string) ?? null;
       if (!session || !unsubscribeToken) throw new Error("Missing extra fields for new_session_available");
-      await sendNewSessionAvailableEmail({ email: to_email, fullName: to_name, session, unsubscribeToken, baseUrl, fromOverride });
+      await sendNewSessionAvailableEmail({ email: to_email, fullName: to_name, session, unsubscribeToken, baseUrl });
       break;
     }
 
@@ -1509,7 +1501,7 @@ Add this section just before the closing `</main>` tag (after the sessions list)
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold text-gray-900">Bounced Emails</h2>
-              <p className="text-xs text-gray-500">Automated emails that bounced in the last 24 hours. Resent emails use mingcong.ding@tum.de as sender.</p>
+              <p className="text-xs text-gray-500">Automated emails that bounced in the last 24 hours. Resent emails use the same booking@aeyecol.com sender.</p>
             </div>
             <button
               onClick={handleCheckBounced}
@@ -1588,21 +1580,9 @@ git commit -m "feat: add bounced emails section to admin page"
 
 ---
 
-## Task 14: Set environment variable and verify end-to-end
+## Task 14: Verify end-to-end
 
-**Files:**
-- `.env.local`
-
-- [ ] **Step 1: Add env var**
-
-In `.env.local`, add:
-```
-RESEND_FROM_OVERRIDE=mingcong.ding@tum.de
-```
-
-**Important:** `mingcong.ding@tum.de` must first be verified in the Resend Dashboard → Domains → Add Single Sender. Check the TUM inbox for the verification email and click the link.
-
-- [ ] **Step 2: Run the dev server**
+- [ ] **Step 1: Run the dev server**
 
 ```bash
 npm run dev
@@ -1628,8 +1608,5 @@ Expected: no errors.
 - [ ] **Step 5: Final commit**
 
 ```bash
-git add .env.local
 git commit -m "feat: complete bounced email tracker feature"
 ```
-
-> Note: `.env.local` should be in `.gitignore`. If not, do NOT commit it — instead document the variable in a `.env.example` file.
