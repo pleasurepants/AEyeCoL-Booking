@@ -437,7 +437,7 @@ export default function Home() {
                 <input id="email" type="email" required value={info.email}
                   onChange={(e) => setInfo({ ...info, email: e.target.value })}
                   className={inputClass} placeholder="example@university.edu" />
-                <p className="mt-1.5 text-xs font-medium text-red-600">Do NOT use @tum.de or @mytum.de — use a personal address (Gmail, GMX, web.de, etc.) to ensure you receive our emails.</p>
+                <p className="mt-1.5 text-xs text-gray-500">We recommend a personal address (Gmail, GMX, web.de, etc.). If you use your TUM email, make sure it ends in <span className="font-medium">@tum.de</span> — not @mytum.de.</p>
               </div>
               <div>
                 <label htmlFor="phone" className="mb-1 block text-sm font-medium text-gray-700">
