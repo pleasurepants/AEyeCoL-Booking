@@ -11,10 +11,8 @@
   "dependencies": {
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.102.0",
-    "@types/nodemailer": "^8.0.0",
     "@upstash/qstash": "^2.10.1",
     "next": "16.2.2",
-    "nodemailer": "^8.0.7",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.10.0"
