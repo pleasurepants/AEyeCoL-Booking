@@ -641,6 +641,7 @@ export async function sendDayBeforeReminderEmail(
         </table>
         <p style="margin: 24px 0 8px; color: #6b7280; font-size: 14px;">Can no longer make it? Cancel below:</p>
         <a href="${cancelUrl}" style="display: inline-block; background: #dc2626; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">Cancel Booking</a>
+        <p style="margin: 12px 0 0; color: #b45309; font-size: 13px;"><strong>Please note:</strong> Cancellation is no longer possible within 3 hours of the session start time. If you cannot attend, please cancel now. Once the 3-hour window closes, you are committed — please make sure to show up.</p>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,
@@ -680,6 +681,9 @@ export async function sendThreeHoursReminderEmail(
           <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0; color: #111827; font-weight: 500;">${locationStr(session)}</td></tr>
         </table>
         <p style="color: #374151; line-height: 1.6;">Please make sure to arrive on time. We look forward to seeing you!</p>
+        <div style="margin: 16px 0; padding: 12px 16px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; color: #92400e; font-size: 13px;">
+          <strong>Cancellation is no longer available.</strong> The 3-hour cancellation window has passed. Please make sure to attend — others are counting on you.
+        </div>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0 16px;" />
         <p style="color: #9ca3af; font-size: 13px; margin: 0;">Best regards,<br /><strong style="color: #6b7280;">AEyeCoL Research Team</strong></p>
       </div>`,

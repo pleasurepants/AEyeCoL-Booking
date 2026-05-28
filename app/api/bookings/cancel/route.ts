@@ -36,11 +36,18 @@ export async function POST(req: NextRequest) {
     location: string;
     room: string | null;
   };
+  const sessionStart = new Date(`${sessionInfo.date}T${sessionInfo.start_time}`);
   const sessionEnd = new Date(`${sessionInfo.date}T${sessionInfo.end_time}`);
   if (sessionEnd.getTime() <= Date.now()) {
     return NextResponse.json(
       { error: "Session already expired. Cancellation is no longer available." },
       { status: 410 }
+    );
+  }
+  if (sessionStart.getTime() - Date.now() <= 3 * 60 * 60 * 1000) {
+    return NextResponse.json(
+      { error: "Cancellation is no longer available within 3 hours of the session start time." },
+      { status: 403 }
     );
   }
 

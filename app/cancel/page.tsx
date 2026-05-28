@@ -36,6 +36,11 @@ function isSessionExpired(session: { date: string; end_time: string }) {
   return new Date(`${session.date}T${session.end_time}`).getTime() <= Date.now();
 }
 
+function isWithin3Hours(session: { date: string; start_time: string }) {
+  const start = new Date(`${session.date}T${session.start_time}`).getTime();
+  return start - Date.now() <= 3 * 60 * 60 * 1000;
+}
+
 export default function CancelPage() {
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gray-50"><p className="text-gray-400">Loading…</p></div>}>
@@ -53,6 +58,7 @@ function CancelContent() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelled, setCancelled] = useState(false);
   const [expired, setExpired] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchBooking = useCallback(async () => {
@@ -76,6 +82,7 @@ function CancelContent() {
 
     const bookingData = data as unknown as BookingDetails;
     setExpired(isSessionExpired(bookingData.sessions));
+    setLocked(isWithin3Hours(bookingData.sessions));
     setBooking(bookingData);
     setLoading(false);
   }, [token]);
@@ -86,7 +93,7 @@ function CancelContent() {
 
   async function handleCancel() {
     if (!token) return;
-    if (expired) return;
+    if (expired || locked) return;
 
     setCancelling(true);
     setError(null);
@@ -102,6 +109,12 @@ function CancelContent() {
         const body = await res.json().catch(() => null);
         if (res.status === 410) {
           setExpired(true);
+          setError(null);
+          setCancelling(false);
+          return;
+        }
+        if (res.status === 403) {
+          setLocked(true);
           setError(null);
           setCancelling(false);
           return;
@@ -174,7 +187,7 @@ function CancelContent() {
           </div>
         )}
 
-        {booking && !cancelled && !error && !expired && (
+        {booking && !cancelled && !error && !expired && !locked && (
           <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
             <h2 className="mb-2 text-lg font-semibold text-gray-900">
               Cancel your booking?
@@ -246,6 +259,26 @@ function CancelContent() {
             <a
               href="/"
               className="mt-5 inline-block rounded-lg bg-gray-700 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+            >
+              Back to Booking Page
+            </a>
+          </div>
+        )}
+
+        {booking && !cancelled && locked && !expired && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-8 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+              <svg className="h-7 w-7 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z" />
+              </svg>
+            </div>
+            <h2 className="mb-2 text-xl font-semibold text-amber-900">Cancellation Locked</h2>
+            <p className="text-sm text-amber-800">
+              Cancellation is no longer available within 3 hours of the session start time. Please make sure to attend.
+            </p>
+            <a
+              href="/"
+              className="mt-5 inline-block rounded-lg bg-amber-700 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-amber-800"
             >
               Back to Booking Page
             </a>
