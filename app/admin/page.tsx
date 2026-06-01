@@ -169,6 +169,8 @@ export default function AdminPage() {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [supervisorEditId, setSupervisorEditId] = useState<string | null>(null);
   const [supervisorDraft, setSupervisorDraft] = useState<string[]>(["", ""]);
+  const [notesEditId, setNotesEditId] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState<string>("");
   const [deletingBookingId, setDeletingBookingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [includePast, setIncludePast] = useState(false);
@@ -305,6 +307,17 @@ export default function AdminPage() {
       body: JSON.stringify({ id, supervisors: sanitizeSupervisors(supervisors) }),
     });
     if (!res.ok) { const b = await res.json().catch(() => null); setError("Supervisor update failed: " + (b?.error ?? "Unknown")); return false; }
+    fetchSessions();
+    return true;
+  }
+
+  async function handleSessionNotes(id: string, notes: string) {
+    setError(null);
+    const res = await fetch("/api/admin/sessions", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, notes: notes.trim() || null }),
+    });
+    if (!res.ok) { const b = await res.json().catch(() => null); setError("Notes update failed: " + (b?.error ?? "Unknown")); return false; }
     fetchSessions();
     return true;
   }
@@ -594,7 +607,38 @@ export default function AdminPage() {
                         {formatTime(session.start_time)} – {formatTime(session.end_time)} · {session.location}
                         {session.room && `, ${session.room}`}
                       </div>
-                      {session.notes && <p className="mt-1 text-xs text-gray-400">{session.notes}</p>}
+                      <div className="mt-1 flex items-center gap-1">
+                        <span className="text-xs font-medium text-gray-400">Session:</span>
+                        {notesEditId === session.id ? (
+                          <>
+                            <input
+                              autoFocus
+                              type="text"
+                              value={notesDraft}
+                              onChange={(e) => setNotesDraft(e.target.value)}
+                              onKeyDown={async (e) => {
+                                if (e.key === "Enter") { const ok = await handleSessionNotes(session.id, notesDraft); if (ok) setNotesEditId(null); }
+                                if (e.key === "Escape") setNotesEditId(null);
+                              }}
+                              className="rounded border border-blue-300 px-1.5 py-0.5 text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400 w-40"
+                              placeholder="e.g. S-42"
+                            />
+                            <button
+                              onClick={async () => { const ok = await handleSessionNotes(session.id, notesDraft); if (ok) setNotesEditId(null); }}
+                              className="rounded bg-blue-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-blue-700"
+                            >Save</button>
+                            <button
+                              onClick={() => setNotesEditId(null)}
+                              className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 hover:bg-gray-300"
+                            >Cancel</button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => { setNotesDraft(session.notes ?? ""); setNotesEditId(session.id); }}
+                            className="rounded px-1 py-0.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-blue-600"
+                          >{session.notes || <span className="italic">click to add</span>}</button>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">

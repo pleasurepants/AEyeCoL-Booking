@@ -266,19 +266,28 @@ function CancelContent() {
         )}
 
         {booking && !cancelled && locked && !expired && (
-          <div className="rounded-xl border border-amber-300 bg-amber-50 p-8 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
-              <svg className="h-7 w-7 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <div className="rounded-xl border border-red-300 bg-red-50 p-8 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+              <svg className="h-7 w-7 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z" />
               </svg>
             </div>
-            <h2 className="mb-2 text-xl font-semibold text-amber-900">Cancellation Locked</h2>
-            <p className="text-sm text-amber-800">
-              Cancellation is no longer available within 3 hours of the session start time. Please make sure to attend.
+            <h2 className="mb-2 text-xl font-semibold text-red-900">Cancellation Not Available</h2>
+            <p className="mb-3 text-sm font-medium text-red-800">
+              Your session starts in less than 3 hours. Cancellation is no longer possible at this stage.
+            </p>
+            <p className="mb-3 text-sm text-red-700">
+              We strongly urge you to honour your commitment and attend the session. Other participants and the research team are counting on you — a last-minute no-show has a serious impact on the study.
+            </p>
+            <p className="mb-5 text-sm text-red-700">
+              If you are facing a genuine emergency and have absolutely no other option, please contact the study coordinator directly:{" "}
+              <a href="mailto:mingcong.ding@tum.de" className="font-semibold underline hover:text-red-900">
+                mingcong.ding@tum.de
+              </a>
             </p>
             <a
               href="/"
-              className="mt-5 inline-block rounded-lg bg-amber-700 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-amber-800"
+              className="inline-block rounded-lg bg-red-700 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-red-800"
             >
               Back to Booking Page
             </a>

@@ -108,8 +108,9 @@ export async function PATCH(req: NextRequest) {
 
   const hasStatus = typeof status === "string" && status.length > 0;
   const hasSupervisors = Object.prototype.hasOwnProperty.call(body, "supervisors");
+  const hasNotes = Object.prototype.hasOwnProperty.call(body, "notes");
 
-  if (!hasStatus && !hasSupervisors) {
+  if (!hasStatus && !hasSupervisors && !hasNotes) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
@@ -122,6 +123,7 @@ export async function PATCH(req: NextRequest) {
   const update: Record<string, unknown> = {};
   if (hasStatus) update.status = status;
   if (hasSupervisors) update.supervisors = sanitizeSupervisors(body.supervisors);
+  if (hasNotes) update.notes = body.notes ?? null;
 
   const { error } = await supabase
     .from("sessions")
