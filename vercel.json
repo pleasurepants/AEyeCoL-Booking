@@ -6,11 +6,11 @@
     },
     {
       "path": "/api/reminders/three-hours",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/reminders/day-before",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 9 * * *"
     }
   ]
 }
