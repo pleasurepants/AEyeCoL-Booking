@@ -15,6 +15,7 @@ interface Booking {
   glasses: string | null;
   preference_order: number | null;
   status: string | null;
+  compensation: string | null;
   created_at: string;
 }
 
@@ -28,6 +29,7 @@ interface Session {
   max_participants: number;
   notes: string | null;
   status: string;
+  signed_file: string | null;
   supervisors: string[];
   bookings: Booking[];
 }
@@ -226,7 +228,7 @@ export default function AdminPage() {
       .order("start_time", { ascending: true });
 
     if (fetchError) { setError("Failed to load session data."); setLoading(false); return; }
-    setSessions((data ?? []).map((s) => ({ ...s, status: s.status ?? "upcoming", supervisors: s.supervisors ?? [] })));
+    setSessions((data ?? []).map((s) => ({ ...s, status: s.status ?? "upcoming", signed_file: s.signed_file ?? "none", supervisors: s.supervisors ?? [] })));
 
     // Build preference map from all bookings
     const { data: allBookings } = await supabase
@@ -329,6 +331,16 @@ export default function AdminPage() {
       body: JSON.stringify({ id, status }),
     });
     if (!res.ok) { const b = await res.json().catch(() => null); setError("Status update failed: " + (b?.error ?? "Unknown")); }
+    else { fetchSessions(); }
+  }
+
+  async function handleSessionSignedFile(id: string, signed_file: string) {
+    setError(null);
+    const res = await fetch("/api/admin/sessions", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, signed_file }),
+    });
+    if (!res.ok) { const b = await res.json().catch(() => null); setError("Signed file update failed: " + (b?.error ?? "Unknown")); }
     else { fetchSessions(); }
   }
 
@@ -602,6 +614,19 @@ export default function AdminPage() {
                             className="rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-400 hover:border-blue-400 hover:text-blue-600"
                           >+ Add supervisors</button>
                         )}
+                        <span className="flex items-center gap-1">
+                          <span className="text-xs font-medium text-gray-400">Signed file:</span>
+                          <select
+                            value={session.signed_file ?? "none"}
+                            onChange={(e) => handleSessionSignedFile(session.id, e.target.value)}
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium border-0 cursor-pointer ${
+                              session.signed_file === "sent" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            <option value="none">None</option>
+                            <option value="sent">Sent</option>
+                          </select>
+                        </span>
                       </div>
                       <div className="mt-0.5 text-sm text-gray-500">
                         {formatTime(session.start_time)} – {formatTime(session.end_time)} · {session.location}
@@ -674,6 +699,7 @@ export default function AdminPage() {
                           <tr className="border-b border-gray-100 text-xs text-gray-500">
                             <th className="px-4 py-2.5 font-medium">Name</th>
                             <th className="px-4 py-2.5 font-medium">Status</th>
+                            <th className="px-4 py-2.5 font-medium">Compensation</th>
                             <th className="px-4 py-2.5 font-medium">Actions</th>
                             <th className="px-4 py-2.5 font-medium">Glasses</th>
                             <th className="px-4 py-2.5 font-medium">Email</th>
@@ -697,6 +723,26 @@ export default function AdminPage() {
                                     : b.status === "pending" ? "bg-amber-100 text-amber-700"
                                     : "bg-gray-100 text-gray-600"
                                   }`}>{b.status || "—"}</span>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-2.5">
+                                  {b.status === "confirmed" ? (
+                                    <select
+                                      disabled={isBusy}
+                                      value={b.compensation ?? "none"}
+                                      onChange={(e) => handleBookingAction("set-compensation", b.id, { compensation: e.target.value })}
+                                      className={`rounded-full px-2 py-0.5 text-xs font-medium border-0 cursor-pointer disabled:opacity-50 ${
+                                        b.compensation === "done" ? "bg-green-100 text-green-700"
+                                        : b.compensation === "received" ? "bg-blue-100 text-blue-700"
+                                        : "bg-gray-100 text-gray-600"
+                                      }`}
+                                    >
+                                      <option value="none">None</option>
+                                      <option value="done">Done</option>
+                                      <option value="received">Received</option>
+                                    </select>
+                                  ) : (
+                                    <span className="text-gray-300">—</span>
+                                  )}
                                 </td>
                                 <td className="whitespace-nowrap px-4 py-2.5">
                                   <div className="flex items-center gap-1">

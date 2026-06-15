@@ -109,8 +109,13 @@ export async function PATCH(req: NextRequest) {
   const hasStatus = typeof status === "string" && status.length > 0;
   const hasSupervisors = Object.prototype.hasOwnProperty.call(body, "supervisors");
   const hasNotes = Object.prototype.hasOwnProperty.call(body, "notes");
+  const hasSignedFile = Object.prototype.hasOwnProperty.call(body, "signed_file");
 
-  if (!hasStatus && !hasSupervisors && !hasNotes) {
+  if (hasSignedFile && !["sent", "none"].includes(body.signed_file)) {
+    return NextResponse.json({ error: "Invalid signed_file value" }, { status: 400 });
+  }
+
+  if (!hasStatus && !hasSupervisors && !hasNotes && !hasSignedFile) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
@@ -124,6 +129,7 @@ export async function PATCH(req: NextRequest) {
   if (hasStatus) update.status = status;
   if (hasSupervisors) update.supervisors = sanitizeSupervisors(body.supervisors);
   if (hasNotes) update.notes = body.notes ?? null;
+  if (hasSignedFile) update.signed_file = body.signed_file;
 
   const { error } = await supabase
     .from("sessions")

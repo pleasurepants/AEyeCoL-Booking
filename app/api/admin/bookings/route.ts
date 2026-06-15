@@ -155,6 +155,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (action === "set-compensation") {
+    const { compensation } = body as { compensation?: string };
+    if (!["none", "done", "received"].includes(compensation ?? "")) {
+      return NextResponse.json({ error: "Invalid compensation value" }, { status: 400 });
+    }
+    await supabase
+      .from("bookings")
+      .update({ compensation })
+      .eq("id", booking_id);
+    return NextResponse.json({ ok: true });
+  }
+
   if (action === "move") {
     const { target_session_id } = body;
     if (!target_session_id) {
