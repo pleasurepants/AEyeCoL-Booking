@@ -419,9 +419,14 @@ export default function Home() {
         {step === "info" && (
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-1 text-lg font-semibold text-gray-900">Your Information</h2>
-            <p className="mb-5 text-sm text-gray-500">
+            <p className="mb-4 text-sm text-gray-500">
               Please fill in your details before selecting a session.
             </p>
+            <div className="mb-5 rounded-lg border-2 border-red-300 bg-red-50 px-4 py-3">
+              <p className="text-sm font-bold text-red-700">
+                If you have already participated once, please do NOT register again.
+              </p>
+            </div>
             <form onSubmit={handleInfoSubmit} className="space-y-4">
               <div>
                 <label htmlFor="full_name" className="mb-1 block text-sm font-medium text-gray-700">
